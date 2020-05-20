@@ -46,10 +46,11 @@ class _CanvasState extends State<Canvas> {
   final Color buttonColor;
   _CanvasState({this.canvasWidth, this.canvasHeight, this.child, this.backgroundColor, this.canvasColor, this.buttonColor});
 
-  List<double> coordinates = [0.0, 0.0];
-  double zoom = 1.0;
   var zoomBoundaries = RangeValues(0.1, 4);
   var selectedZoom = RangeValues(0.1, 2);
+
+  List<double> coordinates = [0.0, 0.0];
+  double zoom = 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -57,8 +58,7 @@ class _CanvasState extends State<Canvas> {
     return GestureDetector(
       onPanUpdate: (details) {
         setState(() {
-          coordinates[0] += details.delta.dx;
-          coordinates[1] += details.delta.dy;
+          coordinates = [coordinates[0] + details.delta.dx, coordinates[1] + details.delta.dy];
         });
       },
       child: Container(
@@ -128,6 +128,7 @@ class _CanvasState extends State<Canvas> {
                         onPressed: () {
                           setState(() {
                             zoom = min(zoom + 0.1, zoomBoundaries.end);
+
                           });
                         },
                         child: Icon(Icons.add),
