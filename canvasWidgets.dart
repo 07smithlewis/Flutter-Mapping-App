@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test_project/canvas.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:mapping_app/canvas.dart';
 import 'dart:math';
 import 'dart:convert';
 
@@ -168,3 +167,46 @@ class Map extends StatelessWidget {
   }
 }
 
+class MapPin extends StatefulWidget {
+
+  final pin;
+  final pinSize = 20;
+
+  MapPin({this.pin});
+
+  @override
+  _MapPin createState() => _MapPin();
+}
+
+class _MapPin extends State<MapPin> {
+
+  @override
+  Widget build(BuildContext context) {
+
+    final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
+    final List<double> iconAnchorPoint = [0.5, 0.2];
+
+    List<double> position = [widget.pin[2] - iconAnchorPoint[0] * widget.pinSize / canvas.zoom, canvas.canvasHeight - widget.pin[3] - (1 - iconAnchorPoint[1]) * widget.pinSize / canvas.zoom];
+    
+    if((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + widget.pinSize > 0 
+    && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
+    && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + widget.pinSize > 0 
+    && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom < 0) {
+      return Stack(
+        children: <Widget>[Positioned(
+          left: position[0] * canvas.zoom,
+          top: position[1] * canvas.zoom,
+          width: widget.pinSize.toDouble(),
+          child: Stack(children: <Widget>[
+            Icon(
+              Icons.pin_drop,
+              size: widget.pinSize.toDouble(),
+            )
+          ],)
+        )],
+      );
+    }else{
+      return Container();
+    }
+  }
+}
