@@ -2,21 +2,23 @@ function doGet(request) {
   var sheet = SpreadsheetApp.openById(request.parameter.spreadsheetId);
   var result = {"status": "SUCCESS"};
   var columnNames = sheet.getDataRange().offset(0, 0, 1).getValues()[0]
-
+  
   try {
-
+    
     var interactionType = request.parameter.interaction;
-
+    
     switch(interactionType) {
         // Parameters: {"Id": Id, "Column_2": Data, "Column_3": Data, ...}
       case "append":
-        if(sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.Id) == -1) {
-          sheet.appendRow(columnNames.map(name => eval('request.parameter.' + name)));
-        }else{
-          result = {"status": "FAILED", "message": "Id "+ request.parameter.Id + " is already in use"};
+        var index = 0;
+        while(sheet.getDataRange().offset(1, 0).getValues().map(row => row[0]).indexOf(index) != -1) {
+          index++;
         }
+        var newRow = columnNames.slice(1).map(name => eval('request.parameter.' + name));
+        newRow.unshift(index);
+        sheet.appendRow(newRow);
         break;
-
+        
         // Parameters: {"deleteId": id}
       case "delete":
         var deleteIndex = sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.deleteId);
@@ -26,7 +28,7 @@ function doGet(request) {
           result = {"status": "FAILED", "message": "Id ${request.parameter.Id} does not exist"};
         }
         break;
-
+        
         // Parameters: {"setId": Id, "columnName": Data_name, "value": Data_value}
       case "set":
         var index = [sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.setId),
@@ -47,7 +49,20 @@ function doGet(request) {
         }
         sheet.getDataRange().offset(index[0]+1, index[1], 1, 1).setValue(request.parameter.value);
         break;
-
+      
+      // Parameters: {"replaceId": Id, "Column_2": Data, "Column_3": Data, ...}
+      case "replace":
+        var replacementRow = columnNames.slice(1).map(name => eval('request.parameter.' + name));
+        var index = sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.replaceId);
+        if(index == -1) {
+          result = {"status": "FAILED", "message": "Id does not exist"};
+          break;
+        }
+        for(var i = 0; i < replacementRow.length; i++) {
+          sheet.getDataRange().offset(index+1, 1 + i, 1, 1).setValue(replacementRow[i]);
+        }
+        break;
+      
         // Parameters: {}
       case "get":
         result = {"status": "SUCCESS", "data": sheet.getDataRange().getValues().slice(1)};
@@ -56,8 +71,8 @@ function doGet(request) {
   } catch(exc) {
     //result = {"status": "FAILED", "message": exc};
   }
-
+  
   return ContentService
   .createTextOutput(JSON.stringify(result))
-  .setMimeType(ContentService.MimeType.JSON);
+  .setMimeType(ContentService.MimeType.JSON);  
 }
