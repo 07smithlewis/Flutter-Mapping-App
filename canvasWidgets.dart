@@ -19,85 +19,90 @@ class _MapTilesState extends State<MapTiles> {
 
   @override
   Widget build(BuildContext context) {
-    
-    var metadata = json.decode(widget.map[8]);
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
+    
+    if(canvas.normalisedZoom > widget.map[5] && canvas.normalisedZoom < widget.map[6]) {
 
-    num clip(num number, num lowerLimit, num upperLimit) {
-      return min(upperLimit, max(lowerLimit, number));
+      var metadata = json.decode(widget.map[10]);
+
+      num clip(num number, num lowerLimit, num upperLimit) {
+        return min(upperLimit, max(lowerLimit, number));
+      }
+      
+      double width = widget.map[7] * canvas.zoom;
+      
+      int realWidth = metadata["extent"][2];
+      List<int> zoomBounds = [int.parse(metadata["minzoom"]), int.parse(metadata["maxzoom"])];
+
+      // Zoom conversion
+      double virtualPixelsPerPixel = realWidth / width;
+      double n = log(virtualPixelsPerPixel) * log2e;
+      double tileSize = metadata["tile_matrix"][0]["tile_size"][0] / pow(2.0, n - clip(n.floor(), 0, zoomBounds[1] - zoomBounds[0]));
+      int zoom = clip(zoomBounds[1] - n.floor(), zoomBounds[0], zoomBounds[1]);
+      List<int> size = [metadata["tile_matrix"][zoom]["matrix_size"][0], metadata["tile_matrix"][zoom]["matrix_size"][1]];
+      List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
+
+      List<List<int>> tileRange = [[0, 0], [0, 0]];
+
+      tileRange[0][0] = clip(
+        (-(((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom)/tileSize)).floor(),
+        0,
+        size[0]
+      );
+      tileRange[0][1] = clip(
+        (-(((canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom)/tileSize)).floor(),
+        0,
+        size[1]
+      );
+      tileRange[1][0] = clip(
+        (((canvas.width + canvas.canvasWidth * canvas.zoom)/2.0 - canvas.coordinates[0] - position[0] * canvas.zoom)/tileSize).ceil(),
+        0,
+        size[0] - tileRange[0][0]
+      );
+      tileRange[1][1] = clip(
+        (((canvas.height + canvas.canvasHeight * canvas.zoom)/2.0 - canvas.coordinates[1] - position[1] * canvas.zoom)/tileSize).ceil(),
+        0,
+        size[1] - tileRange[0][1]
+      );
+
+      final List<double> croppedPosition = [
+        position[0] * canvas.zoom + tileRange[0][0] * tileSize,
+        position[1] * canvas.zoom + tileRange[0][1] * tileSize
+      ];
+
+      final List<double> croppedSize = [
+        tileRange[1][0] * tileSize,
+        tileRange[1][1] * tileSize
+      ];
+      
+      return Stack(
+        children: <Widget>[Positioned(
+          left: croppedPosition[0],
+          top: croppedPosition[1],
+          width: croppedSize[0],
+          height: croppedSize[1],
+          child: Row(
+            children: List<Widget>.generate(tileRange[1][0], (i) => Expanded(child: Column(
+              children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[
+                Container(
+                  color: Colors.grey[(100 + i*100 + j*100) % 900],
+                ),
+                
+                Image.network(
+                  "${widget.map[9]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
+                  width: tileSize,
+                  height: tileSize,
+                  fit: BoxFit.fill,
+                ),
+              ],))),
+            ))),
+          ),
+        ),],
+      );
+    }else{
+      return Container();
     }
-    
-    double width = widget.map[5] * canvas.zoom;
-    
-    int realWidth = metadata["extent"][2];
-    List<int> zoomBounds = [int.parse(metadata["minzoom"]), int.parse(metadata["maxzoom"])];
-
-    // Zoom conversion
-    double virtualPixelsPerPixel = realWidth / width;
-    double n = log(virtualPixelsPerPixel) / log(2);
-    double tileSize = metadata["tile_matrix"][0]["tile_size"][0] / pow(2.0, n - clip(n.floor(), 0, zoomBounds[1] - zoomBounds[0]));
-    int zoom = clip(zoomBounds[1] - n.floor(), zoomBounds[0], zoomBounds[1]);
-    List<int> size = [metadata["tile_matrix"][zoom]["matrix_size"][0], metadata["tile_matrix"][zoom]["matrix_size"][1]];
-    List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
-
-    List<List<int>> tileRange = [[0, 0], [0, 0]];
-
-    tileRange[0][0] = clip(
-      (-(((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom)/tileSize)).floor(),
-      0,
-      size[0]
-    );
-    tileRange[0][1] = clip(
-      (-(((canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom)/tileSize)).floor(),
-      0,
-      size[1]
-    );
-    tileRange[1][0] = clip(
-      (((canvas.width + canvas.canvasWidth * canvas.zoom)/2.0 - canvas.coordinates[0] - position[0] * canvas.zoom)/tileSize).ceil(),
-      0,
-      size[0] - tileRange[0][0]
-    );
-    tileRange[1][1] = clip(
-      (((canvas.height + canvas.canvasHeight * canvas.zoom)/2.0 - canvas.coordinates[1] - position[1] * canvas.zoom)/tileSize).ceil(),
-      0,
-      size[1] - tileRange[0][1]
-    );
-
-    final List<double> croppedPosition = [
-      position[0] * canvas.zoom + tileRange[0][0] * tileSize,
-      position[1] * canvas.zoom + tileRange[0][1] * tileSize
-    ];
-
-    final List<double> croppedSize = [
-      tileRange[1][0] * tileSize,
-      tileRange[1][1] * tileSize
-    ];
-    
-    return Stack(
-      children: <Widget>[Positioned(
-        left: croppedPosition[0],
-        top: croppedPosition[1],
-        width: croppedSize[0],
-        height: croppedSize[1],
-        child: Row(
-          children: List<Widget>.generate(tileRange[1][0], (i) => Expanded(child: Column(
-            children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[
-              Container(
-                color: Colors.grey[(100 + i*100 + j*100) % 900],
-              ),
-              
-              Image.network(
-                "${widget.map[7]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
-                width: tileSize,
-                height: tileSize,
-                fit: BoxFit.fill,
-              ),
-            ],))),
-          ))),
-        ),
-      ),],
-    );
   }
 }
 
@@ -118,11 +123,12 @@ class _MapImage extends State<MapImage> {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
     
-    double width = widget.map[5] * canvas.zoom;
-    double height = widget.map[6] * canvas.zoom;
+    double width = widget.map[7] * canvas.zoom;
+    double height = widget.map[8] * canvas.zoom;
     List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
     
-    if((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + width > 0 
+    if(canvas.normalisedZoom > widget.map[5] && canvas.normalisedZoom < widget.map[6]
+    && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + width > 0 
     && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
     && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + height > 0 
     && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom < 0) {
@@ -133,11 +139,13 @@ class _MapImage extends State<MapImage> {
           width: width,
           child: Stack(children: <Widget>[
             Container(
-              color: Colors.grey[200],
+              color: canvas.canvasColor,
+              width: width,
+              height: height,
             ),
             
             Image.network(
-              widget.map[7],
+              widget.map[9],
               width: width,
               height: height,
               fit: BoxFit.fill,
@@ -188,7 +196,8 @@ class _MapPin extends State<MapPin> {
 
     List<double> position = [widget.pin[2] - iconAnchorPoint[0] * widget.pinSize / canvas.zoom, canvas.canvasHeight - widget.pin[3] - (1 - iconAnchorPoint[1]) * widget.pinSize / canvas.zoom];
     
-    if((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + widget.pinSize > 0 
+    if(canvas.normalisedZoom > widget.pin[4] && canvas.normalisedZoom < widget.pin[5]
+    && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + widget.pinSize > 0 
     && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
     && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + widget.pinSize > 0 
     && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom < 0) {

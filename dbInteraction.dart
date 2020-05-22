@@ -36,6 +36,20 @@ class DbInteraction {
       }
       break;
 
+      case "replace": {
+        if(p.length - 2 == headers.length){
+          String paramString = "?spreadsheetId=$spreadsheetId&interaction=${p[0]}&replaceId=${p[1]}";
+          for(var i = 0; i < headers.length; i++){
+            paramString += "&" + headers[i] + "=${p[i + 2]}";
+          }
+          return paramString;
+        }else{
+          print("Invalid number of arguments");
+          return "";
+        }
+      }
+      break;
+
       case "get": {
         return "?spreadsheetId=$spreadsheetId&interaction=${p[0]}";
       }
@@ -55,7 +69,7 @@ class DbInteraction {
       ).then((response){
         callback(convert.jsonDecode(response.body));
         print(response.body);
-      });    
+      });
     } catch (e) {
       print(e);
     }
