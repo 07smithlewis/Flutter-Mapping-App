@@ -47,7 +47,7 @@ class Home extends StatefulWidget {
 
   final DbInteraction mapDb = new DbInteraction(
     spreadsheetId: "1KXsICI8z6WPonIavtpgruh38WMKwPvweAXT3dCx1FEg",
-    headers: ["mapName", "isTiled", "x", "y", "minZoom", "maxZoom", "width", "height", "link", "metadata"]
+    headers: ["mapName", "isTiled", "x", "y", "z", "minZoom", "maxZoom", "width", "height", "link", "metadata"]
   );
   final DbInteraction mapDataDb = DbInteraction(
     spreadsheetId: "1RNbF50QzE0NDY5FSIjH8sQTrEua7FmC_joMQjr9ijSo",
@@ -84,6 +84,7 @@ class _HomeState extends State<Home> {
     void getMapsCallback(_maps) {
       setState(() {
         mapsInfo = _maps["data"];
+        mapsInfo.sort((a, b) => (a[5].compareTo(b[5])));
         maps = mapsInfo.map((e) => Map(map: e,)).toList();
       });
       callback();
@@ -290,56 +291,99 @@ class SideBar extends StatelessWidget {
   }
 }
 
-class MapNavigation extends StatelessWidget {
+class MapNavigation extends StatefulWidget {
+
+  @override
+  _MapNavigationState createState() => _MapNavigationState();
+}
+
+class _MapNavigationState extends State<MapNavigation> {
+
+  int editing = 0;
+  List editItem;
 
   @override
   Widget build(BuildContext context) {
 
-    final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
+    switch(editing) {
+      case 0:
+        final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
 
-    List<Widget> drawerContents = [ListTile(
-      leading: Icon(Icons.home),
-      title: Text("Canvas"),
-      onTap: () {
-        inheritedData.setView(<double>[0, inheritedData.canvasDimensions[1].toDouble()], inheritedData.canvasDimensions[0]);
-        Navigator.pop(context);
-      },
-    )];
-    drawerContents.add(Divider(
-      height: 10,
-      thickness: 5,
-    ));
-    drawerContents.addAll(inheritedData.mapsInfo.map((e) => ListTile(
-      leading: Icon(Icons.map),
-      title: Text(e[1]),
-      subtitle: Text("x: ${e[3]}, y: ${e[4]}"),
-      enabled: true,
-      onTap: () {
-        inheritedData.setView(<double>[e[3], e[4]], e[7]);
-        Navigator.pop(context);
-      },
-    )).toList());
-    drawerContents.add(Divider(
-      height: 10,
-      thickness: 5,
-    ));
-    drawerContents.addAll(inheritedData.mapDataInfo.map((e) => ListTile(
-      leading: Icon(Icons.pin_drop),
-      title: Text(e[1]),
-      subtitle: Text("x: ${e[2]}, y: ${e[3]}"),
-      enabled: true,
-      onTap: () {
-        inheritedData.setView(<double>[e[2] - inheritedData.canvasDimensions[0] / 2, 
-        e[3] + inheritedData.screenDimensions[1] / 2 * (inheritedData.canvasDimensions[0] / inheritedData.screenDimensions[0])], 
-        inheritedData.canvasDimensions[0]);
-        Navigator.pop(context);
-      },
-    )).toList());
+        List<Widget> drawerContents = [ListTile(
+          leading: Icon(Icons.home),
+          title: Text("Canvas"),
+          onTap: () {
+            inheritedData.setView(<double>[-inheritedData.canvasDimensions[0] * 0.05, inheritedData.canvasDimensions[1] * 1.05], inheritedData.canvasDimensions[0] * 1.1);
+            Navigator.pop(context);
+          },
+        )];
+        drawerContents.add(Divider(
+          height: 10,
+          thickness: 5,
+        ));
+        drawerContents.addAll(inheritedData.mapsInfo.map((map) => ListTile(
+          leading: Icon(Icons.map),
+          title: Text(map[1]),
+          subtitle: Text("x: ${map[3]}, y: ${map[4]}"),
+          enabled: true,
+          onTap: () {
+            inheritedData.setView(<double>[map[3], map[4]], map[8]);
+            Navigator.pop(context);
+          },
+          trailing: IconButton(icon: Icon(Icons.edit), onPressed: (){
+            setState(() {
+              editing = 1;
+              editItem = map;
+            });
+          }),
+        )).toList());
+        drawerContents.add(Divider(
+          height: 10,
+          thickness: 5,
+        ));
+        drawerContents.addAll(inheritedData.mapDataInfo.map((pin) => ListTile(
+          leading: Icon(Icons.pin_drop),
+          title: Text(pin[1]),
+          subtitle: Text("x: ${pin[2]}, y: ${pin[3]}"),
+          enabled: true,
+          onTap: () {
+            inheritedData.setView(<double>[pin[2] - inheritedData.canvasDimensions[0] / 2, 
+            pin[3] + inheritedData.screenDimensions[1] / 2 * (inheritedData.canvasDimensions[0] / inheritedData.screenDimensions[0])], 
+            inheritedData.canvasDimensions[0]);
+            Navigator.pop(context);
+          },
+          trailing: IconButton(icon: Icon(Icons.edit), onPressed: (){
+            setState(() {
+              editing = 2;
+              editItem = pin;
+            });
+          }),
+        )).toList());
 
-    return ListView(
-      children: drawerContents,
-    );
+        return ListView(
+          children: drawerContents,
+        );
+      break;
+      
+      case 1:
+        return EditMapSelector(map: editItem);
+      break;
+
+      case 2:
+        return EditPin(pin: editItem);
+      break;
+
+      default:
+        return Container();
+    }
   }
+}
+
+bool isNumeric(String s) {
+  if (s == null) {
+    return false;
+  }
+  return double.tryParse(s) != null;
 }
 
 class AddPin extends StatefulWidget {
@@ -365,6 +409,16 @@ class _AddPinState extends State<AddPin> {
   List<bool> err = [false, false, false, false, false];
   List<String> errMessage = ["A pin already exists at that position", "Position values must be numeric", "Position is out of range", 
   "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +470,7 @@ class _AddPinState extends State<AddPin> {
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5), hintText: ["-inf", "inf"],),
     ]);
 
     if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
@@ -433,12 +487,6 @@ class _AddPinState extends State<AddPin> {
                 buttonActive = false;
               });
 
-              bool isNumeric(String s) {
-                if (s == null) {
-                  return false;
-                }
-                return double.tryParse(s) != null;
-              }
               if(isNumeric(myController[0].text) && isNumeric(myController[1].text)) {
                 setState(() {err[1] = false;});
                 if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
@@ -449,9 +497,11 @@ class _AddPinState extends State<AddPin> {
                 err[1] = true;
                 err[2] = false;
               });}
-              if(isNumeric(myController[3].text) && isNumeric(myController[4].text)) {
+
+              if((isNumeric(myController[3].text) || myController[3].text == "") && (isNumeric(myController[4].text) || myController[4].text == "")) {
+                setZoomClipping(myController[3].text, myController[4].text);
                 setState(() {err[3] = false;});
-                if(double.parse(myController[3].text) < double.parse(myController[4].text)) {
+                if(zoomClipping[0] < zoomClipping[1]) {
                   setState(() {err[4] = false;});
                 }else{setState(() {err[4] = true;});}
               }else{setState(() {
@@ -471,13 +521,10 @@ class _AddPinState extends State<AddPin> {
                     "append", 
                     myController[2].text,
                     myController[0].text, myController[1].text,
-                    myController[3].text, myController[4].text,
+                    zoomClipping[0], zoomClipping[1],
                     "",
                   ], (response){
                     inheritedData.getMapData((){
-                      setState(() {
-                        buttonActive = true;
-                      });
                       Navigator.pop(context);
                     });
                   });
@@ -491,6 +538,215 @@ class _AddPinState extends State<AddPin> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: button(),
+          ),
+        ),
+      )
+    ]);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: ListView(
+        children: listItems,
+      ),
+    );
+  }
+}
+
+class EditPin extends StatefulWidget {
+
+  final List pin;
+
+  EditPin({this.pin});
+
+  @override
+  _EditPinState createState() => _EditPinState();
+}
+
+class _EditPinState extends State<EditPin> {
+
+  final List<TextEditingController> myController = List<TextEditingController>.generate(5, (index) => TextEditingController());
+  
+  @override
+  void dispose() {
+    myController.map((controller) {
+      controller.dispose();
+    });
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    for(int i = 0; i < myController.length; i++) {
+      myController[i].text = widget.pin[i + 1].toString();
+    }
+    super.initState();
+  }
+
+  List<bool> loading = [false, false];
+  bool buttonActive = true;
+  List<bool> err = [false, false, false, false, false];
+  List<String> errMessage = ["A pin already exists at that position", "Position values must be numeric", "Position is out of range", 
+  "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
+
+    final double entryHeight = 60;
+    final double spaceHeight = 20;
+
+    List<Widget> errorMessage(String message) {
+      return <Widget>[
+        Container(height: spaceHeight, width: double.infinity,),
+        Container(
+          width: double.infinity,
+          child: Text(message),
+        ),
+      ];
+    }
+
+    List<Widget> button(text, isLoading) {
+      List<Widget> widgetList = <Widget>[];
+      widgetList.addAll(<Widget>[
+        Text(text),
+      ]);
+      if(isLoading) {
+        widgetList.addAll(<Widget>[
+          Container(width: 5,),
+          SizedBox(
+            child: CircularProgressIndicator(),
+            width: 20,
+            height: 20,
+          ),
+        ]);
+      }
+      return widgetList;
+    }
+
+    final List<Widget> listItems = <Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(0, 1),),
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Position", numberOfFields: 2, fieldNames: ["x:", "y:"], height: entryHeight, textEditingControllers: myController.sublist(1, 3),),
+    ];
+
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5), hintText: ["-inf", "inf"],),
+    ]);
+
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+
+              if(isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
+                setState(() {err[1] = false;});
+                if(0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[0] 
+                && 0 < double.parse(myController[2].text) && double.parse(myController[2].text) < inheritedData.canvasDimensions[1]) {
+                  setState(() {err[2] = false;});
+                }else{setState(() {err[2] = true;});}
+              }else{setState(() {
+                err[1] = true;
+                err[2] = false;
+              });}
+
+              if((isNumeric(myController[3].text) || myController[3].text == "") && (isNumeric(myController[4].text) || myController[4].text == "")) {
+                setZoomClipping(myController[3].text, myController[4].text);
+                setState(() {err[3] = false;});
+                if(zoomClipping[0] < zoomClipping[1]) {
+                  setState(() {err[4] = false;});
+                }else{setState(() {err[4] = true;});}
+              }else{setState(() {
+                err[3] = true;
+                err[4] = false;
+              });}
+
+              List<String> pinLocations = inheritedData.mapDataInfo.map((pin) {
+                if(pin != widget.pin) {
+                  return "${pin[2]} ${pin[3]}";
+                }else{
+                  return "";
+                }
+              }).toList();
+              String pinLocation = "${myController[1].text} ${myController[2].text}";
+              if(!pinLocations.contains(pinLocation)) {
+                setState(() {err[0] = false;});
+              }else{setState(() {err[0] = true;});}
+
+              if(!err.any((element) => element)) {
+                loading[0] = true;
+                inheritedData.mapDataDb.submitForm([
+                    "replace", widget.pin[0],
+                    myController[0].text,
+                    myController[1].text, myController[2].text,
+                    zoomClipping[0], zoomClipping[1],
+                    "",
+                  ], (response){
+                    inheritedData.getMapData((){
+                      Navigator.pop(context);
+                    });
+                  });
+              }else{
+                setState(() {
+                  buttonActive = true;
+                });
+              }
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button("Edit", loading[0]),
+          ),
+        ),
+      ),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+
+              loading[1] = true;
+              inheritedData.mapDataDb.submitForm([
+                "delete", widget.pin[0],
+              ], (response){
+                inheritedData.getMapData((){
+                  Navigator.pop(context);
+                });
+              });
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button("Delete", loading[1]),
           ),
         ),
       )
@@ -571,7 +827,7 @@ class AddMap extends StatefulWidget {
 
 class _AddMapState extends State<AddMap> {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(8, (index) => TextEditingController());
+  final List<TextEditingController> myController = List<TextEditingController>.generate(9, (index) => TextEditingController());
 
   @override
   void dispose() {
@@ -583,9 +839,200 @@ class _AddMapState extends State<AddMap> {
 
   bool loading = false;
   bool buttonActive = true;
-  List<bool> err = [false, false, false, false, false, false];
+  List<bool> err = [false, false, false, false, false, false, false];
   List<String> errMessage = ["Position values must be numeric", "Size values must be numeric", "Position is out of range", "Size values must be positive",
   "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
+
+    final double entryHeight = 60;
+    final double spaceHeight = 20;
+
+    List<Widget> errorMessage(String message) {
+      return <Widget>[
+        Container(height: spaceHeight, width: double.infinity,),
+        Container(
+          width: double.infinity,
+          child: Text(message),
+        ),
+      ];
+    }
+
+    List<Widget> button() {
+      List<Widget> widgetList = <Widget>[];
+      widgetList.addAll(<Widget>[
+        Icon(Icons.map),
+        Text("Add Map"),
+      ]);
+      if(loading) {
+        widgetList.addAll(<Widget>[
+          Container(width: 5,),
+          SizedBox(
+            child: CircularProgressIndicator(),
+            width: 20,
+            height: 20,
+          ),
+        ]);
+      }
+      return widgetList;
+    }
+
+    List<Widget> listItems = <Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
+    ];
+
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
+    ]);
+
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
+
+    listItems.addAll([
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Size",  numberOfFields: 2, fieldNames: ["Width:", "Height:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
+    ]);
+
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+
+    listItems.addAll([
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Image", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(6, 7),),
+      Divider(height: spaceHeight, thickness: 5,),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+              
+              if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
+                setState(() {err[0] = false;});
+                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
+                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                  setState(() {err[2] = false;});
+                }else{setState(() {err[2] = true;});}
+              }else{setState(() {
+                err[0] = true;
+                err[2] = false;
+              });}
+              if(isNumeric(myController[3].text) && isNumeric(myController[4].text)) {
+                setState(() {err[1] = false;});
+                if(0 < double.parse(myController[3].text) && 0 < double.parse(myController[4].text)) {
+                  setState(() {err[3] = false;});
+                }else{setState(() {err[3] = true;});}
+              }else{setState(() {
+                err[1] = true;
+                err[3] = false;
+              });}
+              if((isNumeric(myController[7].text) || myController[7].text == "") && (isNumeric(myController[8].text) || myController[8].text == "")) {
+                setZoomClipping(myController[7].text, myController[8].text);
+                setState(() {err[4] = false;});
+                if(zoomClipping[0] < zoomClipping[1]) {
+                  setState(() {err[5] = false;});
+                }else{setState(() {err[5] = true;});}
+              }else{setState(() {
+                err[4] = true;
+                err[5] = false;
+              });}
+
+              if(!err.any((element) => element)) {
+                loading = true;
+                inheritedData.mapDb.submitForm([
+                  "append", 
+                  myController[5].text,
+                  false,
+                  myController[0].text, myController[1].text, myController[2].text,
+                  zoomClipping[0], zoomClipping[1],
+                  myController[3].text, myController[4].text,
+                  myController[6].text,
+                  "",
+                ], (response){
+                  inheritedData.getMaps((){
+                    Navigator.pop(context);
+                  });
+                });
+              }else{
+                setState(() {
+                  buttonActive = true;
+                });
+              }
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button(),
+          ),
+        ),
+      )
+    ]);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: ListView(
+        children: listItems
+      ),
+    );
+  }
+}
+
+class AddTiledMap extends StatefulWidget {
+
+  @override
+  _AddTiledMapState createState() => _AddTiledMapState();
+}
+
+class _AddTiledMapState extends State<AddTiledMap> {
+
+  final List<TextEditingController> myController = List<TextEditingController>.generate(9, (index) => TextEditingController());
+
+  @override
+  void dispose() {
+    myController.map((controller) {
+      controller.dispose();
+    });
+    super.dispose();
+  }
+
+  bool loading = false;
+  bool buttonActive = true;
+  List<bool> err = [false, false, false, false, false, false, false];
+  List<String> errMessage = ["Position values must be numeric", "Width value must be numeric", "Position is out of range", "Width must be positive",
+  "Metadata is not in valid json format", "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -628,7 +1075,7 @@ class _AddMapState extends State<AddMap> {
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(4, 5),),
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Position", numberOfFields: 2, fieldNames: ["x:", "y:"], height: entryHeight, textEditingControllers: myController.sublist(0, 2),),
+      ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
     if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
@@ -636,15 +1083,15 @@ class _AddMapState extends State<AddMap> {
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(6, 8),),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
     if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
+    if(err[6]) {listItems.addAll(errorMessage(errMessage[6]));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Size",  numberOfFields: 2, fieldNames: ["Width:", "Height:"], height: entryHeight, textEditingControllers: myController.sublist(2, 4),),
+      ListInput(title: "Width",  numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(3, 4),),
     ]);
 
     if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
@@ -653,6 +1100,13 @@ class _AddMapState extends State<AddMap> {
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Image", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Metadata", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(6, 7), limitLines: false,),
+    ]);
+
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+
+    listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       Container(
         margin: EdgeInsets.all(10),
@@ -663,13 +1117,7 @@ class _AddMapState extends State<AddMap> {
                 buttonActive = false;
               });
               
-              bool isNumeric(String s) {
-                if (s == null) {
-                  return false;
-                }
-                return double.tryParse(s) != null;
-              }
-              if(isNumeric(myController[0].text) && isNumeric(myController[1].text)) {
+              if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[0] = false;});
                 if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
                 && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
@@ -679,41 +1127,43 @@ class _AddMapState extends State<AddMap> {
                 err[0] = true;
                 err[2] = false;
               });}
-              if(isNumeric(myController[2].text) && isNumeric(myController[3].text)) {
+              if(isNumeric(myController[3].text)) {
                 setState(() {err[1] = false;});
-                if(0 < double.parse(myController[2].text) && 0 < double.parse(myController[3].text)) {
+                if(0 < double.parse(myController[3].text)) {
                   setState(() {err[3] = false;});
                 }else{setState(() {err[3] = true;});}
               }else{setState(() {
                 err[1] = true;
                 err[3] = false;
               });}
-              if(isNumeric(myController[6].text) && isNumeric(myController[7].text)) {
-                setState(() {err[4] = false;});
-                if(double.parse(myController[6].text) < double.parse(myController[7].text)) {
-                  setState(() {err[5] = false;});
-                }else{setState(() {err[5] = true;});}
+              if((isNumeric(myController[7].text) || myController[7].text == "") && (isNumeric(myController[8].text) || myController[8].text == "")) {
+                setZoomClipping(myController[7].text, myController[8].text);
+                setState(() {err[5] = false;});
+                if(zoomClipping[0] < zoomClipping[1]) {
+                  setState(() {err[6] = false;});
+                }else{setState(() {err[6] = true;});}
               }else{setState(() {
-                err[4] = true;
-                err[5] = false;
+                err[5] = true;
+                err[6] = false;
               });}
+
+              setState(() {err[5] = false;});
+              try{json.decode(myController[6].text);}
+              on FormatException{setState(() {err[4] = true;});}
 
               if(!err.any((element) => element)) {
                 loading = true;
                 inheritedData.mapDb.submitForm([
                   "append", 
                   myController[4].text,
-                  false,
-                  myController[0].text, myController[1].text,
-                  myController[6].text, myController[7].text,
-                  myController[2].text, myController[3].text,
+                  true,
+                  myController[0].text, myController[1].text, myController[2].text,
+                  zoomClipping[0], zoomClipping[1],
+                  myController[3].text, "",
                   myController[5].text,
-                  "",
+                  myController[6].text,
                 ], (response){
                   inheritedData.getMaps((){
-                    setState(() {
-                      buttonActive = true;
-                    });
                     Navigator.pop(context);
                   });
                 });
@@ -742,15 +1192,36 @@ class _AddMapState extends State<AddMap> {
   }
 }
 
-class AddTiledMap extends StatefulWidget {
+class EditMapSelector extends StatelessWidget {
+
+  final List map;
+
+  EditMapSelector({this.map});
 
   @override
-  _AddTiledMapState createState() => _AddTiledMapState();
+  Widget build(BuildContext context) {
+    print(map[2]);
+    if(map[2]) {
+      return EditTiledMap(map: map);
+    }else{
+      return EditMap(map: map);
+    }
+  }
 }
 
-class _AddTiledMapState extends State<AddTiledMap> {
+class EditMap extends StatefulWidget {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(8, (index) => TextEditingController());
+  final List map;
+
+  EditMap({this.map});
+
+  @override
+  _EditMapState createState() => _EditMapState();
+}
+
+class _EditMapState extends State<EditMap> {
+
+  final List<TextEditingController> myController = List<TextEditingController>.generate(9, (index) => TextEditingController());
 
   @override
   void dispose() {
@@ -760,11 +1231,30 @@ class _AddTiledMapState extends State<AddTiledMap> {
     super.dispose();
   }
 
-  bool loading = false;
+  @override
+  void initState() {
+    List<int> conversion = [3, 4, 5, 8, 9, 1, 10, 6, 7];
+    for(int i = 0; i < myController.length; i++) {
+      myController[i].text = widget.map[conversion[i]].toString();
+    }
+    super.initState();
+  }
+
+  List<bool> loading = [false, false];
   bool buttonActive = true;
   List<bool> err = [false, false, false, false, false, false, false];
-  List<String> errMessage = ["Position values must be numeric", "Width value must be numeric", "Position is out of range", "Width must be positive",
-  "Metadata is not in valid json format", "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+  List<String> errMessage = ["Position values must be numeric", "Size values must be numeric", "Position is out of range", "Size values must be positive",
+  "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -784,13 +1274,13 @@ class _AddTiledMapState extends State<AddTiledMap> {
       ];
     }
 
-    List<Widget> button() {
+    List<Widget> button(text, isLoading) {
       List<Widget> widgetList = <Widget>[];
       widgetList.addAll(<Widget>[
         Icon(Icons.map),
-        Text("Add Map"),
+        Text(text),
       ]);
-      if(loading) {
+      if(isLoading) {
         widgetList.addAll(<Widget>[
           Container(width: 5,),
           SizedBox(
@@ -805,9 +1295,9 @@ class _AddTiledMapState extends State<AddTiledMap> {
 
     List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(3, 4),),
+      ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Position", numberOfFields: 2, fieldNames: ["x:", "y:"], height: entryHeight, textEditingControllers: myController.sublist(0, 2),),
+      ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
     if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
@@ -815,15 +1305,15 @@ class _AddTiledMapState extends State<AddTiledMap> {
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(6, 8),),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
     if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
-    if(err[6]) {listItems.addAll(errorMessage(errMessage[6]));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Width",  numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(2, 3),),
+      ListInput(title: "Size",  numberOfFields: 2, fieldNames: ["Width:", "Height:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
     ]);
 
     if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
@@ -831,9 +1321,228 @@ class _AddTiledMapState extends State<AddTiledMap> {
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Image", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(4, 5),),
+      ListInput(title: "Image", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(6, 7),),
       Divider(height: spaceHeight, thickness: 5,),
-      ListInput(title: "Metadata", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6), limitLines: false,),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+              
+              if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
+                setState(() {err[0] = false;});
+                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
+                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                  setState(() {err[2] = false;});
+                }else{setState(() {err[2] = true;});}
+              }else{setState(() {
+                err[0] = true;
+                err[2] = false;
+              });}
+              if(isNumeric(myController[3].text) && isNumeric(myController[4].text)) {
+                setState(() {err[1] = false;});
+                if(0 < double.parse(myController[3].text) && 0 < double.parse(myController[4].text)) {
+                  setState(() {err[3] = false;});
+                }else{setState(() {err[3] = true;});}
+              }else{setState(() {
+                err[1] = true;
+                err[3] = false;
+              });}
+              if((isNumeric(myController[7].text) || myController[7].text == "") && (isNumeric(myController[8].text) || myController[8].text == "")) {
+                setZoomClipping(myController[7].text, myController[8].text);
+                setState(() {err[4] = false;});
+                if(zoomClipping[0] < zoomClipping[1]) {
+                  setState(() {err[5] = false;});
+                }else{setState(() {err[5] = true;});}
+              }else{setState(() {
+                err[4] = true;
+                err[5] = false;
+              });}
+
+              if(!err.any((element) => element)) {
+                loading[0] = true;
+                inheritedData.mapDb.submitForm([
+                  "replace", widget.map[0], 
+                  myController[5].text,
+                  false,
+                  myController[0].text, myController[1].text, myController[2].text,
+                  zoomClipping[0], zoomClipping[1],
+                  myController[3].text, myController[4].text,
+                  myController[6].text,
+                  "",
+                ], (response){
+                  inheritedData.getMaps((){
+                    Navigator.pop(context);
+                  });
+                });
+              }else{
+                setState(() {
+                  buttonActive = true;
+                });
+              }
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button("Edit Map", loading[0]),
+          ),
+        ),
+      ),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+
+              loading[1] = true;
+              inheritedData.mapDb.submitForm([
+                "delete", widget.map[0],
+              ], (response){
+                inheritedData.getMaps((){
+                  Navigator.pop(context);
+                });
+              });
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button("Delete", loading[1]),
+          ),
+        ),
+      )
+    ]);
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      child: ListView(
+        children: listItems
+      ),
+    );
+  }
+}
+
+class EditTiledMap extends StatefulWidget {
+
+  final List map;
+
+  EditTiledMap({this.map});
+
+  @override
+  _EditTiledMapState createState() => _EditTiledMapState();
+}
+
+class _EditTiledMapState extends State<EditTiledMap> {
+
+  final List<TextEditingController> myController = List<TextEditingController>.generate(9, (index) => TextEditingController());
+
+  @override
+  void dispose() {
+    myController.map((controller) {
+      controller.dispose();
+    });
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    List<int> conversion = [3, 4, 5, 8, 1, 10, 11, 6, 7];
+    for(int i = 0; i < myController.length; i++) {
+      myController[i].text = widget.map[conversion[i]].toString();
+    }
+    super.initState();
+  }
+
+  List<bool> loading = [false, false];
+  bool buttonActive = true;
+  List<bool> err = [false, false, false, false, false, false, false];
+  List<String> errMessage = ["Position values must be numeric", "Width value must be numeric", "Position is out of range", "Width must be positive",
+  "Metadata is not in valid json format", "Zoom values must be numeric", "Maximum zoom must be larger than minimum zoom"];
+
+  List<double> zoomClipping = [-100, 100];
+  void setZoomClipping (String lowerBound, String upperBound) {
+    if(isNumeric(lowerBound)) {
+      zoomClipping[0] = double.parse(lowerBound);
+    }
+    if(isNumeric(upperBound)) {
+      zoomClipping[1] = double.parse(upperBound);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
+
+    final double entryHeight = 60;
+    final double spaceHeight = 20;
+
+    List<Widget> errorMessage(String message) {
+      return <Widget>[
+        Container(height: spaceHeight, width: double.infinity,),
+        Container(
+          width: double.infinity,
+          child: Text(message),
+        ),
+      ];
+    }
+
+    List<Widget> button(text, isLoading) {
+      List<Widget> widgetList = <Widget>[];
+      widgetList.addAll(<Widget>[
+        Icon(Icons.map),
+        Text(text),
+      ]);
+      if(isLoading) {
+        widgetList.addAll(<Widget>[
+          Container(width: 5,),
+          SizedBox(
+            child: CircularProgressIndicator(),
+            width: 20,
+            height: 20,
+          ),
+        ]);
+      }
+      return widgetList;
+    }
+
+    List<Widget> listItems = <Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(4, 5),),
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
+    ];
+
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
+    ]);
+
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
+    if(err[6]) {listItems.addAll(errorMessage(errMessage[6]));}
+
+    listItems.addAll([
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Width",  numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(3, 4),),
+    ]);
+
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+
+    listItems.addAll([
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Image", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
+      Divider(height: spaceHeight, thickness: 5,),
+      ListInput(title: "Metadata", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(6, 7), limitLines: false,),
     ]);
 
     if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
@@ -849,13 +1558,7 @@ class _AddTiledMapState extends State<AddTiledMap> {
                 buttonActive = false;
               });
               
-              bool isNumeric(String s) {
-                if (s == null) {
-                  return false;
-                }
-                return double.tryParse(s) != null;
-              }
-              if(isNumeric(myController[0].text) && isNumeric(myController[1].text)) {
+              if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[0] = false;});
                 if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
                 && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
@@ -865,18 +1568,19 @@ class _AddTiledMapState extends State<AddTiledMap> {
                 err[0] = true;
                 err[2] = false;
               });}
-              if(isNumeric(myController[2].text)) {
+              if(isNumeric(myController[3].text)) {
                 setState(() {err[1] = false;});
-                if(0 < double.parse(myController[2].text)) {
+                if(0 < double.parse(myController[3].text)) {
                   setState(() {err[3] = false;});
                 }else{setState(() {err[3] = true;});}
               }else{setState(() {
                 err[1] = true;
                 err[3] = false;
               });}
-              if(isNumeric(myController[6].text) && isNumeric(myController[7].text)) {
+              if((isNumeric(myController[7].text) || myController[7].text == "") && (isNumeric(myController[8].text) || myController[8].text == "")) {
+                setZoomClipping(myController[7].text, myController[8].text);
                 setState(() {err[5] = false;});
-                if(double.parse(myController[6].text) < double.parse(myController[7].text)) {
+                if(zoomClipping[0] < zoomClipping[1]) {
                   setState(() {err[6] = false;});
                 }else{setState(() {err[6] = true;});}
               }else{setState(() {
@@ -884,26 +1588,23 @@ class _AddTiledMapState extends State<AddTiledMap> {
                 err[6] = false;
               });}
 
-              setState(() {err[4] = false;});
-              try{json.decode(myController[5].text);}
+              setState(() {err[5] = false;});
+              try{json.decode(myController[6].text);}
               on FormatException{setState(() {err[4] = true;});}
 
               if(!err.any((element) => element)) {
-                loading = true;
+                loading[0] = true;
                 inheritedData.mapDb.submitForm([
-                  "append", 
-                  myController[3].text,
-                  true,
-                  myController[0].text, myController[1].text,
-                  myController[6].text, myController[7].text,
-                  myController[2].text, "",
+                  "replace", widget.map[0],
                   myController[4].text,
+                  true,
+                  myController[0].text, myController[1].text, myController[2].text,
+                  zoomClipping[0], zoomClipping[1],
+                  myController[3].text, "",
                   myController[5].text,
+                  myController[6].text,
                 ], (response){
                   inheritedData.getMaps((){
-                    setState(() {
-                      buttonActive = true;
-                    });
                     Navigator.pop(context);
                   });
                 });
@@ -916,7 +1617,32 @@ class _AddTiledMapState extends State<AddTiledMap> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button(),
+            children: button("Edit Map", loading[0]),
+          ),
+        ),
+      ),
+      Container(
+        margin: EdgeInsets.all(10),
+        child: RaisedButton(
+          onPressed: (){
+            if(buttonActive) {
+              setState(() {
+                buttonActive = false;
+              });
+
+              loading[1] = true;
+              inheritedData.mapDb.submitForm([
+                "delete", widget.map[0],
+              ], (response){
+                inheritedData.getMaps((){
+                  Navigator.pop(context);
+                });
+              });
+            }
+          },
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: button("Delete", loading[1]),
           ),
         ),
       )
@@ -946,6 +1672,7 @@ class ListInput extends StatelessWidget {
   final double textBoxHeightFraction = 1;
 
   Widget textFieldConstructor(controller) {
+
     if(limitLines) {
       return TextField(
         maxLines: 1,
@@ -972,6 +1699,79 @@ class ListInput extends StatelessWidget {
           child: Container(
             height: height * textBoxHeightFraction,
             child: textFieldConstructor(textEditingControllers[i])
+          ),
+        ),
+        Container(width: 5,),
+      ]);
+    }
+    inputFields.removeLast();
+
+    return Container(
+      height: height,
+      margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+      child: Column(children: <Widget>[
+        Container(
+          width: double.infinity,
+          child: Text(title),
+        ),
+        Expanded(
+          child: Container(
+            width: double.infinity,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: inputFields,
+            ),
+          ),
+        )
+      ],),
+    );
+  }
+}
+
+class ListInputHint extends StatelessWidget {
+
+  final String title;
+  final int numberOfFields;
+  final List<String> fieldNames;
+  final List<TextEditingController> textEditingControllers;
+  final double height;
+  final bool limitLines;
+  final List<String> hintText;
+
+  ListInputHint({this.title = "Title", this.numberOfFields = 0, this.fieldNames = const <String>[], this.height = 40, this.textEditingControllers = const <TextEditingController>[], this.limitLines = true, this.hintText});
+
+  final double textBoxHeightFraction = 1;
+
+  Widget textFieldConstructor(controller, hintText) {
+
+    if(limitLines) {
+      return TextField(
+        decoration: InputDecoration(hintText: hintText),
+        maxLines: 1,
+        controller: controller,
+      );
+    }else{
+      return TextField(
+        decoration: InputDecoration(hintText: hintText),
+        keyboardType: TextInputType.multiline,
+        maxLines: null,
+        controller: controller,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+
+    List<Widget> inputFields = [];
+    for(var i = 0; i < numberOfFields; i++) {
+      inputFields.addAll(<Widget>[
+        Text(fieldNames[i]),
+        Container(width: 5,),
+        Expanded(
+          child: Container(
+            height: height * textBoxHeightFraction,
+            child: textFieldConstructor(textEditingControllers[i], hintText[i])
           ),
         ),
         Container(width: 5,),
@@ -1033,8 +1833,8 @@ class _SettingsState extends State<Settings> {
 
   bool loading = false;
   bool buttonActive = true;
-  List<bool> err = [];
-  List<String> errMessage = [];
+  List<bool> err = [false, false, false, false];
+  List<String> errMessage = ["Canvas dimensions must be numeric", "Canvas dimensions must be positive", "Zoom limits must be numeric", "Maximum zoom must be larger than minimum zoom"];
 
   @override
   Widget build(BuildContext context) {
@@ -1076,11 +1876,20 @@ class _SettingsState extends State<Settings> {
     final List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Canvas Dimensions", numberOfFields: 2, fieldNames: ["Width", "Height"], height: entryHeight, textEditingControllers: myController.sublist(0, 2),),
+    ];
+
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
+
+    listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Canvas Units", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(2, 3),),
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Zoom Limits", numberOfFields: 2, fieldNames: ["Lower", "Upper"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
-    ];
+    ]);
+
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -1104,12 +1913,24 @@ class _SettingsState extends State<Settings> {
                 buttonActive = false;
               });
 
-              bool isNumeric(String s) {
-                if (s == null) {
-                  return false;
-                }
-                return double.tryParse(s) != null;
-              }
+              if(isNumeric(myController[0].text) && isNumeric(myController[1].text)) {
+                setState(() {err[0] = false;});
+                if(double.parse(myController[0].text) > 0 && double.parse(myController[1].text) > 0) {
+                  setState(() {err[1] = false;});
+                }else{setState(() {err[1] = true;});}
+              }else{setState(() {
+                err[0] = true;
+                err[1] = false;
+              });}
+              if(isNumeric(myController[3].text) && isNumeric(myController[4].text)) {
+                setState(() {err[2] = false;});
+                if(double.parse(myController[4].text) > double.parse(myController[3].text)) {
+                  setState(() {err[3] = false;});
+                }else{setState(() {err[3] = true;});}
+              }else{setState(() {
+                err[2] = true;
+                err[3] = false;
+              });}
 
               if(!err.any((element) => element)) {
                 loading = true;

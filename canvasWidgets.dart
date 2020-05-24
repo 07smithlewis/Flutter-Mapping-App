@@ -22,15 +22,15 @@ class _MapTilesState extends State<MapTiles> {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
     
-    if(canvas.normalisedZoom > widget.map[5] && canvas.normalisedZoom < widget.map[6]) {
+    if(canvas.normalisedZoom > widget.map[6] && canvas.normalisedZoom < widget.map[7]) {
 
-      var metadata = json.decode(widget.map[10]);
+      var metadata = json.decode(widget.map[11]);
 
       num clip(num number, num lowerLimit, num upperLimit) {
         return min(upperLimit, max(lowerLimit, number));
       }
       
-      double width = widget.map[7] * canvas.zoom;
+      double width = widget.map[8] * canvas.zoom;
       
       int realWidth = metadata["extent"][2];
       List<int> zoomBounds = [int.parse(metadata["minzoom"]), int.parse(metadata["maxzoom"])];
@@ -90,7 +90,7 @@ class _MapTilesState extends State<MapTiles> {
                 ),
                 
                 Image.network(
-                  "${widget.map[9]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
+                  "${widget.map[10]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
                   width: tileSize,
                   height: tileSize,
                   fit: BoxFit.fill,
@@ -123,11 +123,11 @@ class _MapImage extends State<MapImage> {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
     
-    double width = widget.map[7] * canvas.zoom;
-    double height = widget.map[8] * canvas.zoom;
+    double width = widget.map[8] * canvas.zoom;
+    double height = widget.map[9] * canvas.zoom;
     List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
     
-    if(canvas.normalisedZoom > widget.map[5] && canvas.normalisedZoom < widget.map[6]
+    if(canvas.normalisedZoom > widget.map[6] && canvas.normalisedZoom < widget.map[7]
     && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + width > 0 
     && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
     && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + height > 0 
@@ -145,7 +145,7 @@ class _MapImage extends State<MapImage> {
             ),
             
             Image.network(
-              widget.map[9],
+              widget.map[10],
               width: width,
               height: height,
               fit: BoxFit.fill,
@@ -188,6 +188,8 @@ class MapPin extends StatefulWidget {
 
 class _MapPin extends State<MapPin> {
 
+  int hovering = 0;
+
   @override
   Widget build(BuildContext context) {
 
@@ -206,13 +208,31 @@ class _MapPin extends State<MapPin> {
           left: position[0] * canvas.zoom,
           top: position[1] * canvas.zoom,
           width: widget.pinSize.toDouble(),
-          child: Stack(children: <Widget>[
-            Icon(
-              Icons.pin_drop,
-              size: widget.pinSize.toDouble(),
+          child: Container(
+              width: widget.pinSize.toDouble(),
+              height: widget.pinSize.toDouble(),
+              decoration: new BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4 * hovering),
+                    blurRadius: 15.0,
+                    spreadRadius: 0,
+                  )
+                ],
+              ),
+              child: InkWell(
+                onTap: (){print("clicked");},
+                onHover: (bool _hovering){
+                  setState(() {
+                    hovering = _hovering ? 1 : 0;
+                  });
+                },
+                child: Icon(Icons.pin_drop, size: widget.pinSize.toDouble()),
+              )
             )
-          ],)
-        )],
+          )
+        ],
       );
     }else{
       return Container();

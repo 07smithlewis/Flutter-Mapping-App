@@ -8,8 +8,8 @@ class InheritedCanvas extends InheritedWidget {
 
   final double width;
   final double height;
-  final int canvasWidth;
-  final int canvasHeight;
+  final double canvasWidth;
+  final double canvasHeight;
   final double zoom;
   final double normalisedZoom;
   final List<double> coordinates;
@@ -25,8 +25,8 @@ class InheritedCanvas extends InheritedWidget {
 class Canvas extends StatefulWidget {
   
   // The size of the canvas in pixels at zoom = 1 
-  final int canvasWidth;
-  final int canvasHeight;
+  final double canvasWidth;
+  final double canvasHeight;
 
   final Widget child;
   final Color backgroundColor;
@@ -80,166 +80,205 @@ class _CanvasState extends State<Canvas> {
     zoom = _zoom;
   }
 
+  bool windowOpen = false;
+
   @override
   Widget build(BuildContext context) {
 
     final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
 
-    return GestureDetector(
-      onPanUpdate: (details) {
-        setState(() {
-          coordinates = [coordinates[0] - details.delta.dx / zoom, coordinates[1] + details.delta.dy / zoom];
-        });
-      },
-      child: Container(
-        color: widget.backgroundColor,
-        child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+    List<Widget> stack = [
+      GestureDetector(
+        onPanUpdate: (details) {
+          setState(() {
+            coordinates = [coordinates[0] - details.delta.dx / zoom, coordinates[1] + details.delta.dy / zoom];
+          });
+        },
+        child: Container(
+          color: widget.backgroundColor,
+          child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
 
-          inheritedData.setScreenDimensions([constraints.maxWidth, constraints.maxHeight]);
-          inheritedData.setCanvasZoom(zoom);
+            inheritedData.setScreenDimensions([constraints.maxWidth, constraints.maxHeight]);
+            inheritedData.setCanvasZoom(zoom);
 
-          if(changeView != inheritedData.changeView) {
-            changeView = inheritedData.changeView;
-            zoom = pow(2.0, clip(log(constraints.maxWidth / inheritedData.setCanvasViewWidth) * log2e, zoomBoundaries.start, zoomBoundaries.end));
-            coordinates = inheritedData.setCanvasViewCoordinates;
-          }
+            if(changeView != inheritedData.changeView) {
+              changeView = inheritedData.changeView;
+              zoom = pow(2.0, clip(log(constraints.maxWidth / inheritedData.setCanvasViewWidth) * log2e, zoomBoundaries.start, zoomBoundaries.end));
+              coordinates = inheritedData.setCanvasViewCoordinates;
+            }
 
-          if(initialBuild) {
-            zoom = constraints.maxWidth / widget.canvasWidth / 1.1;
-            coordinates = [
-              -(constraints.maxWidth / zoom - widget.canvasWidth) / 2, 
-              (constraints.maxHeight / zoom + widget.canvasHeight) / 2
-            ];
-            initialBuild = false;
-          }
+            if(initialBuild) {
+              zoom = constraints.maxWidth / widget.canvasWidth / 1.1;
+              coordinates = [
+                -(constraints.maxWidth / zoom - widget.canvasWidth) / 2, 
+                (constraints.maxHeight / zoom + widget.canvasHeight) / 2
+              ];
+              initialBuild = false;
+            }
 
-          return Stack(children: <Widget>[
-            AlignPositioned(
-              alignment: Alignment.center,
-              minChildHeight: widget.canvasHeight * zoom,
-              maxChildHeight: widget.canvasHeight * zoom,
-              minChildWidth: widget.canvasWidth * zoom,
-              maxChildWidth: widget.canvasWidth * zoom,
-              dx: getCanvasOffset([constraints.maxWidth, constraints.maxHeight])[0],
-              dy: getCanvasOffset([constraints.maxWidth, constraints.maxHeight])[1],
-              child: MouseRegion(
-                onHover: (details) {
-                  setState(() {
-                    mousePosition = [
-                      details.position.dx / zoom + coordinates[0],
-                      (-details.position.dy + inheritedData.appbarHeight) / zoom + coordinates[1]
-                    ];
-                  });
-                },
-                child: Container(
-                  child: InheritedCanvas(
-                    child: widget.child,
-                    width: constraints.maxWidth,
-                    height: constraints.maxHeight,
-                    canvasWidth: widget.canvasWidth,
-                    canvasHeight: widget.canvasHeight,
-                    zoom: zoom,
-                    normalisedZoom: log(zoom) * log2e,
-                    coordinates: getCanvasOffset([constraints.maxWidth, constraints.maxHeight]),
-                    canvasColor: widget.canvasColor,
-                  ),
-                  decoration: BoxDecoration(
-                    color: widget.canvasColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.5),
-                        spreadRadius: 5,
-                        blurRadius: 7,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Container(
-                    width: 40,
-                    height: 40,
-                    padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
-                    child: FittedBox(
-                      child: FloatingActionButton(
-                        backgroundColor: widget.buttonColor,
-                        onPressed: () {
-                          setState(() {
-                            changeZoom(-0.1, [constraints.maxWidth, constraints.maxHeight]);
-                          });
-                        },
-                        child: Icon(Icons.remove),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 40,
-                    height: 40,
-                    padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
-                    child: FittedBox(
-                      child: FloatingActionButton(
-                        backgroundColor: widget.buttonColor,
-                        onPressed: () {
-                          setState(() {
-                            changeZoom(0.1, [constraints.maxWidth, constraints.maxHeight]);
-                          });
-                        },
-                        child: Icon(Icons.add),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 300,
-                    height: 40,
-                    padding: EdgeInsets.only(bottom: 5.0),
-                    child: Slider(
-                      activeColor: widget.buttonColor,
-                      inactiveColor: widget.buttonColor.withOpacity(0.5),
-                      min: zoomBoundaries.start,
-                      max: zoomBoundaries.end,
-                      value: log(zoom) * log2e,
-                      onChanged: (double newValue) {
-                        setState(() {
-                          setZoom(pow(2.0, newValue), [constraints.maxWidth, constraints.maxHeight]);
-                        });
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: 5,
-              right: 5,
-              child: Center(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                    borderRadius: BorderRadius.all(Radius.circular(5))
-                  ),
+            return Stack(children: <Widget>[
+              AlignPositioned(
+                alignment: Alignment.center,
+                minChildHeight: widget.canvasHeight * zoom,
+                maxChildHeight: widget.canvasHeight * zoom,
+                minChildWidth: widget.canvasWidth * zoom,
+                maxChildWidth: widget.canvasWidth * zoom,
+                dx: getCanvasOffset([constraints.maxWidth, constraints.maxHeight])[0],
+                dy: getCanvasOffset([constraints.maxWidth, constraints.maxHeight])[1],
+                child: MouseRegion(
+                  onHover: (details) {
+                    setState(() {
+                      mousePosition = [
+                        details.position.dx / zoom + coordinates[0],
+                        (-details.position.dy + inheritedData.appbarHeight) / zoom + coordinates[1]
+                      ];
+                    });
+                  },
                   child: Container(
-                    margin: EdgeInsets.all(5),
-                    child: Column(children: [
-                      Text("Zoom = ${(100 * log(zoom) * log2e).toInt() / 100}"),
-                      Text("x: ${(mousePosition[0] * 100).toInt()/100}${inheritedData.settings[3]}  y: ${(mousePosition[1] * 100).toInt()/100}${inheritedData.settings[3]}"),
-                    ]),
+                    child: InheritedCanvas(
+                      child: widget.child,
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      canvasWidth: widget.canvasWidth,
+                      canvasHeight: widget.canvasHeight,
+                      zoom: zoom,
+                      normalisedZoom: log(zoom) * log2e,
+                      coordinates: getCanvasOffset([constraints.maxWidth, constraints.maxHeight]),
+                      canvasColor: widget.canvasColor,
+                    ),
+                    decoration: BoxDecoration(
+                      color: widget.canvasColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.5),
+                          spreadRadius: 5,
+                          blurRadius: 7,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            )
-          ]);
-        }),
+              Positioned(
+                bottom: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: <Widget>[
+                    Container(
+                      width: 40,
+                      height: 40,
+                      padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
+                      child: FittedBox(
+                        child: FloatingActionButton(
+                          backgroundColor: widget.buttonColor,
+                          onPressed: () {
+                            setState(() {
+                              changeZoom(-0.1, [constraints.maxWidth, constraints.maxHeight]);
+                            });
+                          },
+                          child: Icon(Icons.remove),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
+                      child: FittedBox(
+                        child: FloatingActionButton(
+                          backgroundColor: widget.buttonColor,
+                          onPressed: () {
+                            setState(() {
+                              changeZoom(0.1, [constraints.maxWidth, constraints.maxHeight]);
+                            });
+                          },
+                          child: Icon(Icons.add),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 300,
+                      height: 40,
+                      padding: EdgeInsets.only(bottom: 5.0),
+                      child: Slider(
+                        activeColor: widget.buttonColor,
+                        inactiveColor: widget.buttonColor.withOpacity(0.5),
+                        min: zoomBoundaries.start,
+                        max: zoomBoundaries.end,
+                        value: log(zoom) * log2e,
+                        onChanged: (double newValue) {
+                          setState(() {
+                            setZoom(pow(2.0, newValue), [constraints.maxWidth, constraints.maxHeight]);
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                bottom: 5,
+                right: 5,
+                child: Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.5),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(5))
+                    ),
+                    child: Container(
+                      margin: EdgeInsets.all(5),
+                      child: Column(children: [
+                        Text("Zoom = ${(100 * log(zoom) * log2e).toInt() / 100}"),
+                        Text("x: ${(mousePosition[0] * 100).toInt()/100}${inheritedData.settings[3]}  y: ${(mousePosition[1] * 100).toInt()/100}${inheritedData.settings[3]}"),
+                      ]),
+                    ),
+                  ),
+                ),
+              )
+            ]);
+          }),
+        ),
       ),
-    );
+    ];
+    if(windowOpen) {
+      stack.add(
+        Positioned(
+          left: 5,
+          bottom: 60,
+          width: 300,
+          height: 400,
+          child: Container(
+            decoration: BoxDecoration(
+              color: widget.buttonColor,
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(10),
+                topLeft: Radius.circular(10),
+              )
+            ),
+            child: Container(
+              margin: EdgeInsets.all(4),
+              child: Column(children: [
+                Container(
+                  height: 30,
+                  child: Center(child: Text("test", style: TextStyle(color: Colors.white, fontSize: 15),))
+                ),
+                Expanded(
+                  child: Container(
+                    color: widget.canvasColor,
+                  ),
+                )
+              ],),
+            ),
+          ),
+        )
+      );
+    }
+
+    return Stack(children: stack);
   }
 }
