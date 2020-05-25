@@ -84,11 +84,7 @@ class _MapTilesState extends State<MapTiles> {
           height: croppedSize[1],
           child: Row(
             children: List<Widget>.generate(tileRange[1][0], (i) => Expanded(child: Column(
-              children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[
-                Container(
-                  color: Colors.grey[(100 + i*100 + j*100) % 900],
-                ),
-                
+              children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[    
                 Image.network(
                   "${widget.map[10]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
                   width: tileSize,
@@ -137,13 +133,7 @@ class _MapImage extends State<MapImage> {
           left: position[0] * canvas.zoom,
           top: position[1] * canvas.zoom,
           width: width,
-          child: Stack(children: <Widget>[
-            Container(
-              color: canvas.canvasColor,
-              width: width,
-              height: height,
-            ),
-            
+          child: Stack(children: <Widget>[    
             Image.network(
               widget.map[10],
               width: width,
