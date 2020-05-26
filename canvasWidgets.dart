@@ -169,6 +169,7 @@ class MapPin extends StatefulWidget {
 
   final pin;
   final pinSize = 20;
+  final List<double> maxNameplateSize = [150, 40];
 
   MapPin({this.pin});
 
@@ -184,10 +185,10 @@ class _MapPin extends State<MapPin> {
   Widget build(BuildContext context) {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
-    final List<double> iconAnchorPoint = [0.5, 0.2];
+    final List<double> iconAnchorPoint = [0.5, 0];
 
-    List<double> position = [widget.pin[2] - iconAnchorPoint[0] * widget.pinSize / canvas.zoom, canvas.canvasHeight - widget.pin[3] - (1 - iconAnchorPoint[1]) * widget.pinSize / canvas.zoom];
-    
+    List<double> position = [widget.pin[2] - widget.maxNameplateSize[0] / 2 / canvas.zoom, canvas.canvasHeight - widget.pin[3] - ((1 - iconAnchorPoint[1]) * widget.pinSize + widget.maxNameplateSize[1]) / canvas.zoom];
+
     if(canvas.normalisedZoom > widget.pin[4] && canvas.normalisedZoom < widget.pin[5]
     && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + widget.pinSize > 0 
     && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
@@ -197,22 +198,50 @@ class _MapPin extends State<MapPin> {
         children: <Widget>[Positioned(
           left: position[0] * canvas.zoom,
           top: position[1] * canvas.zoom,
-          width: widget.pinSize.toDouble(),
-          child: Container(
+          child: Column(children: [
+            Container(
+              alignment: Alignment.bottomCenter,
+              width: widget.maxNameplateSize[0],
+              height: widget.maxNameplateSize[1],
+              child: widget.pin[10] ? InkWell(
+                onTap: (){
+                  canvas.setWindowPin(widget.pin[0]);
+                },
+                onHover: (bool _hovering){
+                  setState(() {
+                    hovering = _hovering ? 1 : 0;
+                  });
+                },
+                child: Container(
+                  
+                  decoration: new BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.4 * hovering),
+                        blurRadius: 15.0,
+                      )
+                    ],
+                  ),
+                  child: Text(widget.pin[1])
+                ),
+              ) : Container()
+            ),
+            Container(
               width: widget.pinSize.toDouble(),
               height: widget.pinSize.toDouble(),
               decoration: new BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.4 * hovering),
+                    color: Colors.white.withOpacity(0.4 * hovering),
                     blurRadius: 15.0,
-                    spreadRadius: 0,
                   )
                 ],
               ),
               child: InkWell(
-                onTap: (){print("clicked");},
+                onTap: (){
+                  canvas.setWindowPin(widget.pin[0]);
+                },
                 onHover: (bool _hovering){
                   setState(() {
                     hovering = _hovering ? 1 : 0;
@@ -221,8 +250,8 @@ class _MapPin extends State<MapPin> {
                 child: Icon(Icons.pin_drop, size: widget.pinSize.toDouble()),
               )
             )
-          )
-        ],
+          ])
+        )],
       );
     }else{
       return Container();

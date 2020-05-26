@@ -4,6 +4,7 @@ import 'canvasWidgets.dart';
 import 'dbInteraction.dart';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:async';
 
 class InheritedData extends InheritedWidget {
 
@@ -51,7 +52,7 @@ class Home extends StatefulWidget {
   );
   final DbInteraction mapDataDb = DbInteraction(
     spreadsheetId: "1RNbF50QzE0NDY5FSIjH8sQTrEua7FmC_joMQjr9ijSo",
-    headers: ["Name", "x", "y", "minZoom", "maxZoom", "data"]
+    headers: ["Name", "x", "y", "minZoom", "maxZoom", "title", "image", "content", "link", "showNameplate"]
   );
   final DbInteraction settingsDb = DbInteraction(
     spreadsheetId: "1Gp2jb89T295CpraBZwPEW0i7KNgg9y56z_y6y9FWrRI",
@@ -116,6 +117,13 @@ class _HomeState extends State<Home> {
     getMaps((){});
     getMapData((){});
     getSettings((){setView([-settings[1] * 0.05, settings[2] * 1.05], settings[1] * 1.1);});
+    Timer.periodic(new Duration(seconds: 5), (timer) {
+      setState(() {
+        getMaps((){});
+        getMapData((){});
+        getSettings((){});
+      });
+    });
     super.initState();
   }
 
@@ -324,7 +332,7 @@ class _MapNavigationState extends State<MapNavigation> {
         drawerContents.addAll(inheritedData.mapsInfo.map((map) => ListTile(
           leading: Icon(Icons.map),
           title: Text(map[1]),
-          subtitle: Text("x: ${map[3]}, y: ${map[4]}"),
+          subtitle: Text("x: ${map[3]},\ny: ${map[4]}"),
           enabled: true,
           onTap: () {
             inheritedData.setView(<double>[map[3], map[4]], map[8]);
@@ -344,7 +352,7 @@ class _MapNavigationState extends State<MapNavigation> {
         drawerContents.addAll(inheritedData.mapDataInfo.map((pin) => ListTile(
           leading: Icon(Icons.pin_drop),
           title: Text(pin[1]),
-          subtitle: Text("x: ${pin[2]}, y: ${pin[3]}"),
+          subtitle: Text("x: ${pin[2]},\ny: ${pin[3]}"),
           enabled: true,
           onTap: () {
             inheritedData.setView(<double>[pin[2] - inheritedData.canvasDimensions[0] / 2, 
@@ -384,6 +392,35 @@ bool isNumeric(String s) {
     return false;
   }
   return double.tryParse(s) != null;
+}
+
+List<Widget> errorMessage(String message, double height) {
+  return <Widget>[
+    Container(height: height, width: double.infinity,),
+    Container(
+      width: double.infinity,
+      child: Text(message),
+    ),
+  ];
+}
+
+List<Widget> button(String text, IconData icon, bool loading) {
+  List<Widget> widgetList = <Widget>[];
+  widgetList.addAll(<Widget>[
+    Icon(icon),
+    Text(text),
+  ]);
+  if(loading) {
+    widgetList.addAll(<Widget>[
+      Container(width: 5,),
+      SizedBox(
+        child: CircularProgressIndicator(),
+        width: 20,
+        height: 20,
+      ),
+    ]);
+  }
+  return widgetList;
 }
 
 class AddPin extends StatefulWidget {
@@ -428,35 +465,6 @@ class _AddPinState extends State<AddPin> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button() {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.add_location),
-        Text("Add Pin"),
-      ]);
-      if(loading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     final List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(2, 3),),
@@ -464,17 +472,17 @@ class _AddPinState extends State<AddPin> {
       ListInput(title: "Position", numberOfFields: 2, fieldNames: ["x:", "y:"], height: entryHeight, textEditingControllers: myController.sublist(0, 2),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -522,12 +530,8 @@ class _AddPinState extends State<AddPin> {
                     myController[2].text,
                     myController[0].text, myController[1].text,
                     zoomClipping[0], zoomClipping[1],
-                    "",
-                  ], (response){
-                    inheritedData.getMapData((){
-                      Navigator.pop(context);
-                    });
-                  });
+                    myController[2].text, "", "", "", false,
+                  ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -537,7 +541,7 @@ class _AddPinState extends State<AddPin> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button(),
+            children: button("Add Pin", Icons.add_location, loading),
           ),
         ),
       )
@@ -565,7 +569,7 @@ class EditPin extends StatefulWidget {
 
 class _EditPinState extends State<EditPin> {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(5, (index) => TextEditingController());
+  final List<TextEditingController> myController = List<TextEditingController>.generate(10, (index) => TextEditingController());
   
   @override
   void dispose() {
@@ -607,34 +611,6 @@ class _EditPinState extends State<EditPin> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button(text, isLoading) {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Text(text),
-      ]);
-      if(isLoading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     final List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(0, 1),),
@@ -642,17 +618,17 @@ class _EditPinState extends State<EditPin> {
       ListInput(title: "Position", numberOfFields: 2, fieldNames: ["x:", "y:"], height: entryHeight, textEditingControllers: myController.sublist(1, 3),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -706,12 +682,8 @@ class _EditPinState extends State<EditPin> {
                     myController[0].text,
                     myController[1].text, myController[2].text,
                     zoomClipping[0], zoomClipping[1],
-                    "",
-                  ], (response){
-                    inheritedData.getMapData((){
-                      Navigator.pop(context);
-                    });
-                  });
+                    myController[5].text, myController[6].text, myController[7].text, myController[8].text, myController[9].text,
+                  ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -721,7 +693,7 @@ class _EditPinState extends State<EditPin> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Edit", loading[0]),
+            children: button("Save", Icons.save, loading[0]),
           ),
         ),
       ),
@@ -737,16 +709,12 @@ class _EditPinState extends State<EditPin> {
               loading[1] = true;
               inheritedData.mapDataDb.submitForm([
                 "delete", widget.pin[0],
-              ], (response){
-                inheritedData.getMapData((){
-                  Navigator.pop(context);
-                });
-              });
+              ], (response){Navigator.pop(context);});
             }
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Delete", loading[1]),
+            children: button("Delete", Icons.delete, loading[1]),
           ),
         ),
       )
@@ -861,35 +829,6 @@ class _AddMapState extends State<AddMap> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button() {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.map),
-        Text("Add Map"),
-      ]);
-      if(loading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
@@ -897,24 +836,24 @@ class _AddMapState extends State<AddMap> {
       ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
-    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Size",  numberOfFields: 2, fieldNames: ["Width:", "Height:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
     ]);
 
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -970,11 +909,7 @@ class _AddMapState extends State<AddMap> {
                   myController[3].text, myController[4].text,
                   myController[6].text,
                   "",
-                ], (response){
-                  inheritedData.getMaps((){
-                    Navigator.pop(context);
-                  });
-                });
+                ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -984,7 +919,7 @@ class _AddMapState extends State<AddMap> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button(),
+            children: button("Add Map", Icons.map, loading),
           ),
         ),
       )
@@ -1042,35 +977,6 @@ class _AddTiledMapState extends State<AddTiledMap> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button() {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.map),
-        Text("Add Map"),
-      ]);
-      if(loading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(4, 5),),
@@ -1078,24 +984,24 @@ class _AddTiledMapState extends State<AddTiledMap> {
       ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
-    if(err[6]) {listItems.addAll(errorMessage(errMessage[6]));}
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5], spaceHeight));}
+    if(err[6]) {listItems.addAll(errorMessage(errMessage[6], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Width",  numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(3, 4),),
     ]);
 
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -1104,7 +1010,7 @@ class _AddTiledMapState extends State<AddTiledMap> {
       ListInput(title: "Metadata", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(6, 7), limitLines: false,),
     ]);
 
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -1162,11 +1068,7 @@ class _AddTiledMapState extends State<AddTiledMap> {
                   myController[3].text, "",
                   myController[5].text,
                   myController[6].text,
-                ], (response){
-                  inheritedData.getMaps((){
-                    Navigator.pop(context);
-                  });
-                });
+                ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -1176,7 +1078,7 @@ class _AddTiledMapState extends State<AddTiledMap> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button(),
+            children: button("Add Map", Icons.map, loading),
           ),
         ),
       )
@@ -1264,35 +1166,6 @@ class _EditMapState extends State<EditMap> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button(text, isLoading) {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.map),
-        Text(text),
-      ]);
-      if(isLoading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
@@ -1300,24 +1173,24 @@ class _EditMapState extends State<EditMap> {
       ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
-    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Size",  numberOfFields: 2, fieldNames: ["Width:", "Height:"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
     ]);
 
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -1373,11 +1246,7 @@ class _EditMapState extends State<EditMap> {
                   myController[3].text, myController[4].text,
                   myController[6].text,
                   "",
-                ], (response){
-                  inheritedData.getMaps((){
-                    Navigator.pop(context);
-                  });
-                });
+                ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -1387,7 +1256,7 @@ class _EditMapState extends State<EditMap> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Edit Map", loading[0]),
+            children: button("Save", Icons.save, loading[0]),
           ),
         ),
       ),
@@ -1403,16 +1272,12 @@ class _EditMapState extends State<EditMap> {
               loading[1] = true;
               inheritedData.mapDb.submitForm([
                 "delete", widget.map[0],
-              ], (response){
-                inheritedData.getMaps((){
-                  Navigator.pop(context);
-                });
-              });
+              ], (response){Navigator.pop(context);});
             }
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Delete", loading[1]),
+            children: button("Delete", Icons.delete, loading[1]),
           ),
         ),
       )
@@ -1483,35 +1348,6 @@ class _EditTiledMapState extends State<EditTiledMap> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button(text, isLoading) {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.map),
-        Text(text),
-      ]);
-      if(isLoading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(4, 5),),
@@ -1519,24 +1355,24 @@ class _EditTiledMapState extends State<EditTiledMap> {
       ListInput(title: "Position", numberOfFields: 3, fieldNames: ["x:", "y:", "z:"], height: entryHeight, textEditingControllers: myController.sublist(0, 3),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInputHint(title: "Zoom Clipping", numberOfFields: 2, fieldNames: ["Min zoom:", "Max zoom:"], height: entryHeight, textEditingControllers: myController.sublist(7, 9), hintText: ["-inf", "inf"],),
     ]);
 
-    if(err[5]) {listItems.addAll(errorMessage(errMessage[5]));}
-    if(err[6]) {listItems.addAll(errorMessage(errMessage[6]));}
+    if(err[5]) {listItems.addAll(errorMessage(errMessage[5], spaceHeight));}
+    if(err[6]) {listItems.addAll(errorMessage(errMessage[6], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Width",  numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(3, 4),),
     ]);
 
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -1545,7 +1381,7 @@ class _EditTiledMapState extends State<EditTiledMap> {
       ListInput(title: "Metadata", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(6, 7), limitLines: false,),
     ]);
 
-    if(err[4]) {listItems.addAll(errorMessage(errMessage[4]));}
+    if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
 
     listItems.addAll([
       Divider(height: spaceHeight, thickness: 5,),
@@ -1603,11 +1439,7 @@ class _EditTiledMapState extends State<EditTiledMap> {
                   myController[3].text, "",
                   myController[5].text,
                   myController[6].text,
-                ], (response){
-                  inheritedData.getMaps((){
-                    Navigator.pop(context);
-                  });
-                });
+                ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -1617,7 +1449,7 @@ class _EditTiledMapState extends State<EditTiledMap> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Edit Map", loading[0]),
+            children: button("Save", Icons.save, loading[0]),
           ),
         ),
       ),
@@ -1633,16 +1465,12 @@ class _EditTiledMapState extends State<EditTiledMap> {
               loading[1] = true;
               inheritedData.mapDb.submitForm([
                 "delete", widget.map[0],
-              ], (response){
-                inheritedData.getMaps((){
-                  Navigator.pop(context);
-                });
-              });
+              ], (response){Navigator.pop(context);});
             }
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button("Delete", loading[1]),
+            children: button("Delete", Icons.delete, loading[1]),
           ),
         ),
       )
@@ -1844,42 +1672,13 @@ class _SettingsState extends State<Settings> {
     final double entryHeight = 60;
     final double spaceHeight = 20;
 
-    List<Widget> errorMessage(String message) {
-      return <Widget>[
-        Container(height: spaceHeight, width: double.infinity,),
-        Container(
-          width: double.infinity,
-          child: Text(message),
-        ),
-      ];
-    }
-
-    List<Widget> button() {
-      List<Widget> widgetList = <Widget>[];
-      widgetList.addAll(<Widget>[
-        Icon(Icons.settings),
-        Text("Save Settings"),
-      ]);
-      if(loading) {
-        widgetList.addAll(<Widget>[
-          Container(width: 5,),
-          SizedBox(
-            child: CircularProgressIndicator(),
-            width: 20,
-            height: 20,
-          ),
-        ]);
-      }
-      return widgetList;
-    }
-
     final List<Widget> listItems = <Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       ListInput(title: "Canvas Dimensions", numberOfFields: 2, fieldNames: ["Width", "Height"], height: entryHeight, textEditingControllers: myController.sublist(0, 2),),
     ];
 
-    if(err[0]) {listItems.addAll(errorMessage(errMessage[0]));}
-    if(err[1]) {listItems.addAll(errorMessage(errMessage[1]));}
+    if(err[0]) {listItems.addAll(errorMessage(errMessage[0], spaceHeight));}
+    if(err[1]) {listItems.addAll(errorMessage(errMessage[1], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -1888,8 +1687,8 @@ class _SettingsState extends State<Settings> {
       ListInput(title: "Zoom Limits", numberOfFields: 2, fieldNames: ["Lower", "Upper"], height: entryHeight, textEditingControllers: myController.sublist(3, 5),),
     ]);
 
-    if(err[2]) {listItems.addAll(errorMessage(errMessage[2]));}
-    if(err[3]) {listItems.addAll(errorMessage(errMessage[3]));}
+    if(err[2]) {listItems.addAll(errorMessage(errMessage[2], spaceHeight));}
+    if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -1938,14 +1737,7 @@ class _SettingsState extends State<Settings> {
                     "replace", "0",
                     myController[0].text, myController[1].text, myController[2].text, myController[3].text, myController[4].text,
                     myController[5].text, myController[6].text, myController[7].text, myController[8].text,
-                  ], (response){
-                    inheritedData.getSettings((){
-                      setState(() {
-                        buttonActive = true;
-                      });
-                      Navigator.pop(context);
-                    });
-                  });
+                  ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
                   buttonActive = true;
@@ -1955,7 +1747,7 @@ class _SettingsState extends State<Settings> {
           },
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: button(),
+            children: button("Save", Icons.save, loading),
           ),
         ),
       )
