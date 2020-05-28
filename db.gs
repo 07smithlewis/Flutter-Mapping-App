@@ -1,7 +1,7 @@
 function doGet(request) {
   var sheet = SpreadsheetApp.openById(request.parameter.spreadsheetId);
   var result = {"status": "SUCCESS"};
-  var columnNames = sheet.getDataRange().offset(0, 0, 1).getValues()[0]
+  var data = sheet.getDataRange().getValues();
   
   try {
     
@@ -11,17 +11,17 @@ function doGet(request) {
         // Parameters: {"Id": Id, "Column_2": Data, "Column_3": Data, ...}
       case "append":
         var index = 0;
-        while(sheet.getDataRange().offset(1, 0).getValues().map(row => row[0]).indexOf(index) != -1) {
+        while(data.slice(1).map(row => row[0]).indexOf(index) != -1) {
           index++;
         }
-        var newRow = columnNames.slice(1).map(name => eval('request.parameter.' + name));
+        var newRow = data[0].slice(1).map(name => eval('request.parameter.' + name));
         newRow.unshift(index);
         sheet.appendRow(newRow);
         break;
         
         // Parameters: {"deleteId": id}
       case "delete":
-        var deleteIndex = sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.deleteId);
+        var deleteIndex = data.slice(1).map(row => row[0].toString()).indexOf(request.parameter.deleteId);
         if(deleteIndex != -1) {
           sheet.deleteRow(deleteIndex+2);
         }else{
@@ -31,10 +31,10 @@ function doGet(request) {
         
         // Parameters: {"setId": Id, "columnName": Data_name, "value": Data_value}
       case "set":
-        var index = [sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.setId),
-                     sheet.getDataRange().offset(0, 0, 1).getValues()[0].indexOf(request.parameter.columnName)];
+        var index = [data.slice(1).map(row => row[0].toString()).indexOf(request.parameter.setId),
+                     data[0].indexOf(request.parameter.columnName)];
         if(request.parameter.columnName == "Id"){
-          if(sheet.getDataRange().getValues().map(row => row[0].toString()).indexOf(request.parameter.value) != -1) {
+          if(data.slice(1).map(row => row[0].toString()).indexOf(request.parameter.value) != -1) {
             result = {"status": "FAILED", "message": "Id ${request.parameter.Id} already in use"};
             break;
           }
@@ -52,24 +52,22 @@ function doGet(request) {
       
       // Parameters: {"replaceId": Id, "Column_2": Data, "Column_3": Data, ...}
       case "replace":
-        var replacementRow = columnNames.slice(1).map(name => eval('request.parameter.' + name));
-        var index = sheet.getDataRange().offset(1, 0).getValues().map(row => row[0].toString()).indexOf(request.parameter.replaceId);
+        var replacementRow = [data[0].slice(1).map(name => eval('request.parameter.' + name)),];
+        var index = data.slice(1).map(row => row[0].toString()).indexOf(request.parameter.replaceId);
         if(index == -1) {
           result = {"status": "FAILED", "message": "Id does not exist"};
           break;
         }
-        for(var i = 0; i < replacementRow.length; i++) {
-          sheet.getDataRange().offset(index+1, 1 + i, 1, 1).setValue(replacementRow[i]);
-        }
+        sheet.getDataRange().offset(index+1, 1, 1, replacementRow[0].length).setValues(replacementRow);
         break;
       
         // Parameters: {}
       case "get":
-        result = {"status": "SUCCESS", "data": sheet.getDataRange().getValues().slice(1)};
+        result = {"status": "SUCCESS", "data": data.slice(1)};
         break;
     }
   } catch(exc) {
-    //result = {"status": "FAILED", "message": exc};
+    // result = {"status": "FAILED", "message": exc};
   }
   
   return ContentService

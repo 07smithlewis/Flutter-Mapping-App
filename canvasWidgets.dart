@@ -12,10 +12,19 @@ class MapTiles extends StatefulWidget {
   MapTiles({this.map});
 
   @override
-  _MapTilesState createState() => _MapTilesState();
+  _MapTilesState createState() => _MapTilesState(metadata: json.decode(map[11]));
 }
 
 class _MapTilesState extends State<MapTiles> {
+
+  final metadata;
+  _MapTilesState({this.metadata});
+
+  num clip(num number, num lowerLimit, num upperLimit) {
+    return min(upperLimit, max(lowerLimit, number));
+  }
+
+  List<List<int>> tileRange = [[0, 0], [0, 0]];
 
   @override
   Widget build(BuildContext context) {
@@ -23,12 +32,6 @@ class _MapTilesState extends State<MapTiles> {
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
     
     if(canvas.normalisedZoom > widget.map[6] && canvas.normalisedZoom < widget.map[7]) {
-
-      var metadata = json.decode(widget.map[11]);
-
-      num clip(num number, num lowerLimit, num upperLimit) {
-        return min(upperLimit, max(lowerLimit, number));
-      }
       
       double width = widget.map[8] * canvas.zoom;
       
@@ -43,33 +46,33 @@ class _MapTilesState extends State<MapTiles> {
       List<int> size = [metadata["tile_matrix"][zoom]["matrix_size"][0], metadata["tile_matrix"][zoom]["matrix_size"][1]];
       List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
 
-      List<List<int>> tileRange = [[0, 0], [0, 0]];
-
       tileRange[0][0] = clip(
-        (-(((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom)/tileSize)).floor(),
+        (-(((canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + canvas.significantDistance)/tileSize)).floor(),
         0,
         size[0]
       );
       tileRange[0][1] = clip(
-        (-(((canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom)/tileSize)).floor(),
+        (-(((canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + canvas.significantDistance)/tileSize)).floor(),
         0,
         size[1]
       );
       tileRange[1][0] = clip(
-        (((canvas.width + canvas.canvasWidth * canvas.zoom)/2.0 - canvas.coordinates[0] - position[0] * canvas.zoom)/tileSize).ceil(),
+        (((canvas.width + canvas.canvasWidth * canvas.zoom)/2.0 - canvas.coordinates[0] - position[0] * canvas.zoom + canvas.significantDistance)/tileSize).ceil(),
         0,
         size[0] - tileRange[0][0]
       );
       tileRange[1][1] = clip(
-        (((canvas.height + canvas.canvasHeight * canvas.zoom)/2.0 - canvas.coordinates[1] - position[1] * canvas.zoom)/tileSize).ceil(),
+        (((canvas.height + canvas.canvasHeight * canvas.zoom)/2.0 - canvas.coordinates[1] - position[1] * canvas.zoom + canvas.significantDistance)/tileSize).ceil(),
         0,
         size[1] - tileRange[0][1]
       );
+
 
       final List<double> croppedPosition = [
         position[0] * canvas.zoom + tileRange[0][0] * tileSize,
         position[1] * canvas.zoom + tileRange[0][1] * tileSize
       ];
+
 
       final List<double> croppedSize = [
         tileRange[1][0] * tileSize,
@@ -124,10 +127,10 @@ class _MapImage extends State<MapImage> {
     List<double> position = [widget.map[3], canvas.canvasHeight - widget.map[4]];
     
     if(canvas.normalisedZoom > widget.map[6] && canvas.normalisedZoom < widget.map[7]
-    && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + width > 0 
-    && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
-    && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + height > 0 
-    && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom < 0) {
+    && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + width + canvas.significantDistance > 0 
+    && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom - canvas.significantDistance < 0 
+    && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + height + canvas.significantDistance > 0 
+    && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom - canvas.significantDistance < 0) {
       return Stack(
         children: <Widget>[Positioned(
           left: position[0] * canvas.zoom,
@@ -185,19 +188,20 @@ class _MapPin extends State<MapPin> {
   Widget build(BuildContext context) {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
-    final List<double> iconAnchorPoint = [0.5, 0];
+    final double iconAnchorPoint = 0;
 
-    List<double> position = [widget.pin[2] - widget.maxNameplateSize[0] / 2 / canvas.zoom, canvas.canvasHeight - widget.pin[3] - ((1 - iconAnchorPoint[1]) * widget.pinSize + widget.maxNameplateSize[1]) / canvas.zoom];
+    List<double> position = [widget.pin[2] * canvas.zoom - widget.maxNameplateSize[0] / 2, widget.pin[3] * canvas.zoom - widget.pinSize * iconAnchorPoint];
+    List<double> positionScreen = [(canvas.width - canvas.canvasWidth * canvas.zoom) / 2 + canvas.coordinates[0] + position[0],
+    (canvas.height - canvas.canvasHeight * canvas.zoom) / 2 - canvas.coordinates[1] + position[1]];
 
     if(canvas.normalisedZoom > widget.pin[4] && canvas.normalisedZoom < widget.pin[5]
-    && (canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom + widget.pinSize > 0 
-    && (-canvas.width - canvas.canvasWidth * canvas.zoom)/2.0 + canvas.coordinates[0] + position[0] * canvas.zoom < 0 
-    && (canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom + widget.pinSize > 0 
-    && (-canvas.height - canvas.canvasHeight * canvas.zoom)/2.0 + canvas.coordinates[1] + position[1] * canvas.zoom < 0) {
+    && positionScreen[0] > -widget.maxNameplateSize[0] - canvas.significantDistance && positionScreen[0] < canvas.width + canvas.significantDistance
+    && positionScreen[1] > -widget.maxNameplateSize[1] + widget.pinSize * (1 - iconAnchorPoint) - canvas.significantDistance 
+    && positionScreen[1] < canvas.height + widget.pinSize * iconAnchorPoint + canvas.significantDistance) {
       return Stack(
         children: <Widget>[Positioned(
-          left: position[0] * canvas.zoom,
-          top: position[1] * canvas.zoom,
+          left: position[0],
+          bottom: position[1],
           child: Column(children: [
             Container(
               alignment: Alignment.bottomCenter,
@@ -205,19 +209,21 @@ class _MapPin extends State<MapPin> {
               height: widget.maxNameplateSize[1],
               child: widget.pin[10] ? InkWell(
                 onTap: (){
-                  canvas.setWindowPin(widget.pin[0]);
+                  canvas.setWindowPinId(widget.pin[0]);
                 },
                 onHover: (bool _hovering){
-                  setState(() {
-                    hovering = _hovering ? 1 : 0;
-                  });
+                  if((_hovering ? 1 : 0) != hovering) {
+                    setState(() {
+                      hovering = _hovering ? 1 : 0;
+                    });
+                  }
                 },
                 child: Container(
                   
                   decoration: new BoxDecoration(
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.4 * hovering),
+                        color: Colors.white.withOpacity(0.9 * hovering),
                         blurRadius: 15.0,
                       )
                     ],
@@ -233,19 +239,21 @@ class _MapPin extends State<MapPin> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.white.withOpacity(0.4 * hovering),
+                    color: Colors.white.withOpacity(0.9 * hovering),
                     blurRadius: 15.0,
                   )
                 ],
               ),
               child: InkWell(
                 onTap: (){
-                  canvas.setWindowPin(widget.pin[0]);
+                  canvas.setWindowPinId(widget.pin[0]);
                 },
                 onHover: (bool _hovering){
-                  setState(() {
-                    hovering = _hovering ? 1 : 0;
-                  });
+                  if((_hovering ? 1 : 0) != hovering) {
+                    setState(() {
+                      hovering = _hovering ? 1 : 0;
+                    });
+                  }
                 },
                 child: Icon(Icons.pin_drop, size: widget.pinSize.toDouble()),
               )

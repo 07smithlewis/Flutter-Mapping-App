@@ -25,7 +25,6 @@ class InheritedData extends InheritedWidget {
   final double setCanvasViewWidth;
   final int changeView;
   final Function setView;
-  final double appbarHeight;
   final int sidebarIndex;
   final Function setSidebarIndex;
   final List<double> screenDimensions;
@@ -34,12 +33,17 @@ class InheritedData extends InheritedWidget {
   final Function setCanvasZoom;
 
   InheritedData({Widget child, this.canvasDimensions, this.mapsInfo, this.mapDataInfo, this.maps, this.mapData, this.mainColor, 
-  this.setCanvasViewCoordinates, this.setCanvasViewWidth, this.changeView, this.setView, this.appbarHeight, this.mapDb, 
-  this.mapDataDb, this.getMaps, this.getMapData, this.sidebarIndex, this.setSidebarIndex, this.screenDimensions, 
-  this.setScreenDimensions, this.canvasZoom, this.setCanvasZoom, this.settingsDb, this.getSettings, this.settings}) : super(child: child);
+  this.setCanvasViewCoordinates, this.setCanvasViewWidth, this.changeView, this.setView, this.mapDb, this.mapDataDb, this.getMaps, 
+  this.getMapData, this.sidebarIndex, this.setSidebarIndex, this.screenDimensions, this.setScreenDimensions, this.canvasZoom, 
+  this.setCanvasZoom, this.settingsDb, this.getSettings, this.settings}) : super(child: child);
 
   @override
-  bool updateShouldNotify(InheritedWidget oldWidget) => true;
+  bool updateShouldNotify(InheritedData oldWidget) {
+    return oldWidget.canvasDimensions[0] != canvasDimensions[0] || oldWidget.canvasDimensions[1] != canvasDimensions[1] ||
+    oldWidget.mapsInfo.toString() != mapsInfo.toString() || oldWidget.mapDataInfo.toString() != mapDataInfo.toString() ||
+    oldWidget.settings.toString() != settings.toString() || oldWidget.screenDimensions[0] != screenDimensions[0] ||
+    oldWidget.screenDimensions[1] != screenDimensions[1];
+  }
 }
 
 void main() => runApp(MaterialApp(home: Home()));
@@ -65,8 +69,6 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
 
-  double appbarHeight = 50.0;
-
   List mapsInfo = [];
   List mapDataInfo = [];
   List<Widget> maps = <Widget>[];
@@ -83,30 +85,36 @@ class _HomeState extends State<Home> {
   
   void getMaps(Function callback) {
     void getMapsCallback(_maps) {
-      setState(() {
-        mapsInfo = _maps["data"];
-        mapsInfo.sort((a, b) => (a[5].compareTo(b[5])));
-        maps = mapsInfo.map((e) => Map(map: e,)).toList();
-      });
+      if(_maps["data"].toString() != mapsInfo.toString()) {
+        setState(() {
+          mapsInfo = _maps["data"];
+          mapsInfo.sort((a, b) => (a[5].compareTo(b[5])));
+          maps = mapsInfo.map((e) => Map(map: e,)).toList();
+        });
+      }
       callback();
     }
     widget.mapDb.submitForm(["get"], getMapsCallback);
   }
   void getMapData(Function callback) {
     void getMapData(_mapData) {
-      setState(() {
-        mapDataInfo = _mapData["data"];
-        mapData = mapDataInfo.map((e) => MapPin(pin: e,)).toList();
-      });
+      if(_mapData["data"].toString() != mapDataInfo.toString()) {
+        setState(() {
+          mapDataInfo = _mapData["data"];
+          mapData = mapDataInfo.map((e) => MapPin(pin: e,)).toList();
+        });
+      }
       callback();
     }
     widget.mapDataDb.submitForm(["get"], getMapData);
   }
   void getSettings(Function callback) {
     void getSettings(_settings) {
-      setState(() {
-        settings = _settings["data"][0];
-      });
+      if( _settings["data"][0].toString() != settings.toString()) {
+        setState(() {
+          settings = _settings["data"][0];
+        });
+      }
       callback();
     }
     widget.settingsDb.submitForm(["get"], getSettings);
@@ -118,11 +126,9 @@ class _HomeState extends State<Home> {
     getMapData((){});
     getSettings((){setView([-settings[1] * 0.05, settings[2] * 1.05], settings[1] * 1.1);});
     Timer.periodic(new Duration(seconds: 5), (timer) {
-      setState(() {
-        getMaps((){});
-        getMapData((){});
-        getSettings((){});
-      });
+      getMaps((){});
+      getMapData((){});
+      getSettings((){});
     });
     super.initState();
   }
@@ -174,7 +180,6 @@ class _HomeState extends State<Home> {
       setCanvasViewWidth: setCanvasViewWidth,
       changeView: changeView,
       setView: setView,
-      appbarHeight: appbarHeight,
       sidebarIndex: sidebarIndex,
       setSidebarIndex: setSidebarIndex,
       screenDimensions: screenDimensions,
@@ -183,13 +188,10 @@ class _HomeState extends State<Home> {
       setCanvasZoom: setCanvasZoom,
       child: Scaffold(
         backgroundColor: Colors.white,
-        appBar: PreferredSize(
-          preferredSize: Size.fromHeight(appbarHeight),
-          child: AppBar(
-            backgroundColor: Color(getColorFromHex(settings[6])),
-            title: Text("Map"),
-            centerTitle: true,
-          ),
+        appBar: AppBar(
+          backgroundColor: Color(getColorFromHex(settings[6])),
+          title: Text("Map"),
+          centerTitle: true,
         ),
         drawer: SideBar(),
         body: Canvas(
@@ -236,6 +238,8 @@ class SideBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
+    print("building sidebar");
+
     final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
 
     const List<NavBarOption> navBarOptions = <NavBarOption>[
@@ -272,13 +276,10 @@ class SideBar extends StatelessWidget {
       width: min(300, MediaQuery.of(context).size.width),
       color: Colors.white,
       child: Scaffold(
-        appBar: PreferredSize(
-          preferredSize: Size.fromHeight(inheritedData.appbarHeight),
-          child: AppBar(
-            backgroundColor: inheritedData.mainColor,
-            title: Text("Tools"),
-            centerTitle: true,
-          ),
+        appBar: AppBar(
+          backgroundColor: inheritedData.mainColor,
+          title: Text("Tools"),
+          centerTitle: true,
         ),
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
@@ -355,9 +356,10 @@ class _MapNavigationState extends State<MapNavigation> {
           subtitle: Text("x: ${pin[2]},\ny: ${pin[3]}"),
           enabled: true,
           onTap: () {
-            inheritedData.setView(<double>[pin[2] - inheritedData.canvasDimensions[0] / 2, 
-            pin[3] + inheritedData.screenDimensions[1] / 2 * (inheritedData.canvasDimensions[0] / inheritedData.screenDimensions[0])], 
-            inheritedData.canvasDimensions[0]);
+            double zoomClippingMultiplier = min(1, 0.9 * (inheritedData.screenDimensions[0] / inheritedData.canvasDimensions[0]) / pow(2, pin[4]));
+            inheritedData.setView(<double>[pin[2] - inheritedData.canvasDimensions[0] * zoomClippingMultiplier / 2, 
+            pin[3] + inheritedData.screenDimensions[1] * zoomClippingMultiplier / 2 * (inheritedData.canvasDimensions[0] / inheritedData.screenDimensions[0])], 
+            inheritedData.canvasDimensions[0] * zoomClippingMultiplier);
             Navigator.pop(context);
           },
           trailing: IconButton(icon: Icon(Icons.edit), onPressed: (){
@@ -1102,7 +1104,6 @@ class EditMapSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print(map[2]);
     if(map[2]) {
       return EditTiledMap(map: map);
     }else{
