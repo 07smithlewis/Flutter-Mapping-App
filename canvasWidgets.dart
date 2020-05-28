@@ -228,7 +228,10 @@ class _MapPin extends State<MapPin> {
                       )
                     ],
                   ),
-                  child: Text(widget.pin[1])
+                  child: Text(
+                    widget.pin[1],
+                    textAlign: TextAlign.center,
+                  )
                 ),
               ) : Container()
             ),

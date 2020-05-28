@@ -155,6 +155,8 @@ class _CanvasState extends State<Canvas> {
     List<Widget> stack = [
       Container(
         child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+          
+          inheritedData.setCanvasCoordinates(getCanvasOffset([constraints.maxWidth, constraints.maxHeight]));
 
           inheritedData.setScreenDimensions([constraints.maxWidth, constraints.maxHeight]);
           inheritedData.setCanvasZoom(zoom);

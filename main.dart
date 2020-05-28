@@ -31,18 +31,24 @@ class InheritedData extends InheritedWidget {
   final Function setScreenDimensions;
   final double canvasZoom;
   final Function setCanvasZoom;
+  final List<double> canvasCoordinates;
+  final Function setCanvasCoordinates;
+  final pinSize = 20;
+  final List<double> maxNameplateSize = [150, 40];
+  final double iconAnchorPoint = 0;
 
   InheritedData({Widget child, this.canvasDimensions, this.mapsInfo, this.mapDataInfo, this.maps, this.mapData, this.mainColor, 
   this.setCanvasViewCoordinates, this.setCanvasViewWidth, this.changeView, this.setView, this.mapDb, this.mapDataDb, this.getMaps, 
   this.getMapData, this.sidebarIndex, this.setSidebarIndex, this.screenDimensions, this.setScreenDimensions, this.canvasZoom, 
-  this.setCanvasZoom, this.settingsDb, this.getSettings, this.settings}) : super(child: child);
+  this.setCanvasZoom, this.settingsDb, this.getSettings, this.settings, this.canvasCoordinates, this.setCanvasCoordinates}) : super(child: child);
 
   @override
   bool updateShouldNotify(InheritedData oldWidget) {
     return oldWidget.canvasDimensions[0] != canvasDimensions[0] || oldWidget.canvasDimensions[1] != canvasDimensions[1] ||
     oldWidget.mapsInfo.toString() != mapsInfo.toString() || oldWidget.mapDataInfo.toString() != mapDataInfo.toString() ||
     oldWidget.settings.toString() != settings.toString() || oldWidget.screenDimensions[0] != screenDimensions[0] ||
-    oldWidget.screenDimensions[1] != screenDimensions[1];
+    oldWidget.screenDimensions[1] != screenDimensions[1] || oldWidget.canvasCoordinates[0] != canvasCoordinates[0] ||
+    oldWidget.canvasCoordinates[1] != canvasCoordinates[1];
   }
 }
 
@@ -120,6 +126,8 @@ class _HomeState extends State<Home> {
     widget.settingsDb.submitForm(["get"], getSettings);
   }
 
+  bool rebuild = false;
+
   @override
   void initState() {
     getMaps((){});
@@ -129,6 +137,7 @@ class _HomeState extends State<Home> {
       getMaps((){});
       getMapData((){});
       getSettings((){});
+      setState((){rebuild = !rebuild;});
     });
     super.initState();
   }
@@ -158,9 +167,15 @@ class _HomeState extends State<Home> {
       sidebarIndex = index;
     }); 
   }
+  List<double> canvasCoordinates = [0, 0];
+  void setCanvasCoordinates(List<double> coordinates) {
+    canvasCoordinates = coordinates;
+  }
 
   @override
   Widget build(BuildContext context) {
+
+    bool checkRebuild = rebuild;
 
     return InheritedData(
       getMaps: getMaps,
@@ -186,6 +201,8 @@ class _HomeState extends State<Home> {
       setScreenDimensions: setScreenDimensions,
       canvasZoom: canvasZoom,
       setCanvasZoom: setCanvasZoom,
+      canvasCoordinates: canvasCoordinates,
+      setCanvasCoordinates: setCanvasCoordinates,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
@@ -237,8 +254,6 @@ class SideBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-    print("building sidebar");
 
     final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
 
@@ -310,9 +325,12 @@ class _MapNavigationState extends State<MapNavigation> {
 
   int editing = 0;
   List editItem;
+  String search = "";
 
   @override
   Widget build(BuildContext context) {
+
+    print("building navigation");
 
     switch(editing) {
       case 0:
@@ -330,7 +348,23 @@ class _MapNavigationState extends State<MapNavigation> {
           height: 10,
           thickness: 5,
         ));
-        drawerContents.addAll(inheritedData.mapsInfo.map((map) => ListTile(
+
+        List mapsInfo = inheritedData.mapsInfo.map((e) => e).toList();
+        mapsInfo.removeWhere((map) {
+          double width = map[8] * inheritedData.canvasZoom;
+          double height = (map[9] == "" ? 2 * map[8] : map[9]) * inheritedData.canvasZoom;
+          List<double> position = [map[3], inheritedData.canvasDimensions[1] - map[4]];
+          double normalisedZoom = log(inheritedData.canvasZoom) * log2e;
+
+          return !(normalisedZoom > map[6]) || !(normalisedZoom < map[7])
+          || !((inheritedData.screenDimensions[0] - inheritedData.canvasDimensions[0] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[0] + position[0] * inheritedData.canvasZoom + width > 0)
+          || !((-inheritedData.screenDimensions[0] - inheritedData.canvasDimensions[0] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[0] + position[0] * inheritedData.canvasZoom < 0)
+          || !((inheritedData.screenDimensions[1] - inheritedData.canvasDimensions[1] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[1] + position[1] * inheritedData.canvasZoom + height > 0)
+          || !((-inheritedData.screenDimensions[1] - inheritedData.canvasDimensions[1] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[1] + position[1] * inheritedData.canvasZoom < 0);
+        });
+        mapsInfo.sort((a, b) => a[1].toString().compareTo(b[1].toString()));
+
+        drawerContents.addAll(mapsInfo.map((map) => ListTile(
           leading: Icon(Icons.map),
           title: Text(map[1]),
           subtitle: Text("x: ${map[3]},\ny: ${map[4]}"),
@@ -350,7 +384,23 @@ class _MapNavigationState extends State<MapNavigation> {
           height: 10,
           thickness: 5,
         ));
-        drawerContents.addAll(inheritedData.mapDataInfo.map((pin) => ListTile(
+
+        List mapDataInfo = inheritedData.mapDataInfo.map((e) => e).toList();
+        mapDataInfo.removeWhere((pin) {
+
+          List<double> position = [pin[2] * inheritedData.canvasZoom - inheritedData.maxNameplateSize[0] / 2, pin[3] * inheritedData.canvasZoom - inheritedData.pinSize * inheritedData.iconAnchorPoint];
+          List<double> positionScreen = [(inheritedData.screenDimensions[0] - inheritedData.canvasDimensions[0] * inheritedData.canvasZoom) / 2 + inheritedData.canvasCoordinates[0] + position[0],
+          (inheritedData.screenDimensions[1] - inheritedData.canvasDimensions[1] * inheritedData.canvasZoom) / 2 - inheritedData.canvasCoordinates[1] + position[1]];
+          double normalisedZoom = log(inheritedData.canvasZoom) * log2e;
+
+          return !(normalisedZoom > pin[4] && normalisedZoom < pin[5])
+          || !(positionScreen[0] > -inheritedData.maxNameplateSize[0]) || !(positionScreen[0] < inheritedData.screenDimensions[0])
+          || !(positionScreen[1] > -inheritedData.maxNameplateSize[1] + inheritedData.pinSize * (1 - inheritedData.iconAnchorPoint))
+          || !(positionScreen[1] < inheritedData.screenDimensions[1] + inheritedData.pinSize * inheritedData.iconAnchorPoint);
+        });
+        mapDataInfo.sort((a, b) => a[1].toString().compareTo(b[1].toString()));
+
+        drawerContents.addAll(mapDataInfo.map((pin) => ListTile(
           leading: Icon(Icons.pin_drop),
           title: Text(pin[1]),
           subtitle: Text("x: ${pin[2]},\ny: ${pin[3]}"),
