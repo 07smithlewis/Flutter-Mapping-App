@@ -68,13 +68,6 @@ class _MapTilesState extends State<MapTiles> {
         size[1] - tileRange[0][1]
       );
 
-
-      final List<double> croppedPosition = [
-        position[0] * canvas.zoom + tileRange[0][0] * tileSize,
-        position[1] * canvas.zoom + tileRange[0][1] * tileSize
-      ];
-
-
       final List<double> croppedSize = [
         tileRange[1][0] * tileSize,
         tileRange[1][1] * tileSize
@@ -82,13 +75,13 @@ class _MapTilesState extends State<MapTiles> {
       
       return Stack(
         children: <Widget>[Positioned(
-          left: croppedPosition[0],
-          top: croppedPosition[1],
+          left: position[0] * canvas.zoom,
+          top: position[1] * canvas.zoom,
           width: width,
           height: width * realHeight / realWidth,
           child: Stack(children: [Positioned(
-            left: 0,
-            top: 0,
+            left: tileRange[0][0] * tileSize,
+            top: tileRange[0][1] * tileSize,
             child: Container(
               width: croppedSize[0],
               height: croppedSize[1],
