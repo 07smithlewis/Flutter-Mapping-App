@@ -35,7 +35,8 @@ class _MapTilesState extends State<MapTiles> {
       
       double width = widget.map[8] * canvas.zoom;
       
-      int realWidth = metadata["extent"][2];
+      double realWidth = metadata["extent"][2];
+      double realHeight = -metadata["extent"][1];
       List<int> zoomBounds = [int.parse(metadata["minzoom"]), int.parse(metadata["maxzoom"])];
 
       // Zoom conversion
@@ -83,20 +84,28 @@ class _MapTilesState extends State<MapTiles> {
         children: <Widget>[Positioned(
           left: croppedPosition[0],
           top: croppedPosition[1],
-          width: croppedSize[0],
-          height: croppedSize[1],
-          child: Row(
-            children: List<Widget>.generate(tileRange[1][0], (i) => Expanded(child: Column(
-              children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[    
-                Image.network(
-                  "${widget.map[10]}$zoom/${tileRange[0][0] + i}/${tileRange[0][1] + j}.${metadata["format"]}",
-                  width: tileSize,
-                  height: tileSize,
-                  fit: BoxFit.fill,
-                ),
-              ],))),
-            ))),
-          ),
+          width: width,
+          height: width * realHeight / realWidth,
+          child: Stack(children: [Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              width: croppedSize[0],
+              height: croppedSize[1],
+              child: Row(
+                children: List<Widget>.generate(tileRange[1][0], (i) => Expanded(child: Column(
+                  children: List<Widget>.generate(tileRange[1][1], (j) => Expanded(child: Stack(children: <Widget>[    
+                    Image.network(
+                      "${widget.map[10]}$zoom/${tileRange[0][1] + j}/${tileRange[0][0] + i}.${metadata["format"]}",
+                      width: tileSize,
+                      height: tileSize,
+                      fit: BoxFit.fill,
+                    ),
+                  ],))),
+                ))),
+              ),
+            ),
+          )])
         ),],
       );
     }else{
