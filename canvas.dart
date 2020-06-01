@@ -146,6 +146,7 @@ class _CanvasState extends State<Canvas> {
   final double radialButtonSize = 30;
   final double radialMenuRadius = 30;
   List<int> hovering = [0, 0];
+  bool loading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -186,10 +187,26 @@ class _CanvasState extends State<Canvas> {
                   backgroundColor: widget.buttonColor,
                   onPressed: () {
                     setState(() {
+                      changeZoom(-1, [constraints.maxWidth, constraints.maxHeight]);
+                    });
+                  },
+                  child: Text("-1"),
+                ),
+              ),
+            ),
+            Container(
+              width: widget.buttonSize + 5,
+              height: widget.buttonSize + 5,
+              padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
+              child: FittedBox(
+                child: FloatingActionButton(
+                  backgroundColor: widget.buttonColor,
+                  onPressed: () {
+                    setState(() {
                       changeZoom(-0.1, [constraints.maxWidth, constraints.maxHeight]);
                     });
                   },
-                  child: Icon(Icons.remove),
+                  child: Text("-0.1"),
                 ),
               ),
             ),
@@ -205,25 +222,24 @@ class _CanvasState extends State<Canvas> {
                       changeZoom(0.1, [constraints.maxWidth, constraints.maxHeight]);
                     });
                   },
-                  child: Icon(Icons.add),
+                  child: Text("+0.1"),
                 ),
               ),
             ),
             Container(
-              width: 300,
+              width: widget.buttonSize + 5,
               height: widget.buttonSize + 5,
-              padding: EdgeInsets.only(bottom: 5.0),
-              child: Slider(
-                activeColor: widget.buttonColor,
-                inactiveColor: widget.buttonColor.withOpacity(0.5),
-                min: widget.zoomBoundaries.start,
-                max: widget.zoomBoundaries.end,
-                value: log(zoom) * log2e,
-                onChanged: (double newValue) {
-                  setState(() {
-                    setZoom(pow(2.0, newValue), [constraints.maxWidth, constraints.maxHeight]);
-                  });
-                },
+              padding: EdgeInsets.only(left: 5.0, bottom: 5.0),
+              child: FittedBox(
+                child: FloatingActionButton(
+                  backgroundColor: widget.buttonColor,
+                  onPressed: () {
+                    setState(() {
+                      changeZoom(1, [constraints.maxWidth, constraints.maxHeight]);
+                    });
+                  },
+                  child: Text("+1"),
+                ),
               ),
             ),
           ];
@@ -385,8 +401,16 @@ class _CanvasState extends State<Canvas> {
                   top: radialPosition[1] - radialMenuRadius - radialButtonSize / 2,
                   width: radialButtonSize,
                   height: radialButtonSize,
-                  child: inkWellButton(Icons.add_location, hovering[0], (_hovering){setState((){hovering[0] = _hovering;});}, (){
-                    inheritedData.mapDataDb.submitForm(["append", "New Pin", radialPositionMap[0], radialPositionMap[1], -100, 100, "", "", "", "", false], (e){});
+                  child: loading ? SizedBox(
+                    child: CircularProgressIndicator(),
+                    width: radialButtonSize,
+                    height: radialButtonSize,
+                  ) : inkWellButton(Icons.add_location, hovering[0], (_hovering){setState((){hovering[0] = _hovering;});}, (){
+                    setState(() {loading = true;});
+                    inheritedData.mapDataDb.submitForm(["append", "New Pin", radialPositionMap[0], radialPositionMap[1], -100, 100, "", "", "", "", false, 1, ""], (e){setState(() {
+                      loading = false;
+                      radialOpen = false;
+                    });});
                   })
                 ):Container()
               ]),
@@ -432,7 +456,7 @@ class PopupWindowContent extends StatefulWidget {
 
 class _PopupWindowContentState extends State<PopupWindowContent> {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(9, (index) => TextEditingController());
+  final List<TextEditingController> myController = List<TextEditingController>.generate(10, (index) => TextEditingController());
   
   @override
   void dispose() {
@@ -450,7 +474,7 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
     final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
     pinId = _pinId;
     pin = inheritedData.mapDataInfo[inheritedData.mapDataInfo.indexWhere((element) => (element[0] == pinId))];
-    for(int i = 0; i < myController.length; i++) {
+    for(int i = 0; i < 9; i++) {
       myController[i].text = pin[i + 1].toString();
     }
     nameplateSwitch = pin[10];
@@ -472,6 +496,9 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
       zoomClipping[1] = double.parse(upperBound);
     }
   }
+
+  int iconSelected = 0;
+  bool customIcon = false;
 
   @override
   Widget build(BuildContext context) {
@@ -525,16 +552,15 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
           Divider(height: spaceHeight, thickness: 5,),
           ListInput(title: "Title", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(5, 6),),
           Divider(height: spaceHeight, thickness: 5,),
-          ListInput(title: "Content", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(7, 8),),
+          ListInput(title: "Content", limitLines: false, numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(7, 8),),
           Divider(height: spaceHeight, thickness: 5,),
           ListInput(title: "External Link", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(8, 9),),
           Divider(height: spaceHeight, thickness: 5,),
           ListInput(title: "Name", numberOfFields: 1, fieldNames: [""], height: entryHeight, textEditingControllers: myController.sublist(0, 1),),
           Container(
-            height: entryHeight,
             margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
             child: Row(children: [
-              Text("ShowNameplate"),
+              Text("Show Nameplate"),
               Switch(
                 value: nameplateSwitch,
                 onChanged: (value) {
@@ -560,6 +586,41 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
 
         if(err[3]) {windowWidgetList.addAll(errorMessage(errMessage[3], spaceHeight));}
         if(err[4]) {windowWidgetList.addAll(errorMessage(errMessage[4], spaceHeight));}
+
+        List<Widget> icons = List.generate(20, (index) => Container(
+          margin: EdgeInsets.all(2), width: 44, height: 44, child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
+              borderRadius: BorderRadius.circular(5)
+            ),
+            width: double.infinity, height: double.infinity, 
+            child: FlatButton(
+              shape: new RoundedRectangleBorder(borderRadius: new BorderRadius.circular(5)),
+              onPressed: (){setState(() {iconSelected = index;});},
+              child: Center(child: Image.network("./Icons/${index + 1}.png"))
+            ),
+          )
+        ));
+        windowWidgetList.addAll(<Widget>[
+          Divider(height: spaceHeight, thickness: 5,),
+          Container(
+            margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+            child: Row(children: [
+              Text("Custom Icon"),
+              Switch(
+                value: customIcon,
+                onChanged: (value) {
+                  setState(() {
+                    customIcon = value;
+                    myController[9].text = "";
+                  });
+                },
+              ),
+            ],),
+          ),
+          customIcon ? ListInput(title: "Icon", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(9, 10),) :
+          Wrap(children: icons)
+        ]);
 
         windowWidgetList.addAll(<Widget>[
         Divider(height: spaceHeight, thickness: 5,),
@@ -613,7 +674,7 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
                       myController[0].text, myController[1].text, myController[2].text,
                       zoomClipping[0], zoomClipping[1],
                       myController[5].text, myController[6].text, myController[7].text, myController[8].text, 
-                      nameplateSwitch,
+                      nameplateSwitch, iconSelected + 1, myController[9]
                     ], (response){
                       setState(() {
                         loading[0] = false;
@@ -766,76 +827,6 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
           ),
         )
       ]),
-    );
-  }
-}
-
-class ListInput extends StatelessWidget {
-
-  final String title;
-  final int numberOfFields;
-  final List<String> fieldNames;
-  final List<TextEditingController> textEditingControllers;
-  final double height;
-  final bool limitLines;
-
-  ListInput({this.title = "Title", this.numberOfFields = 0, this.fieldNames = const <String>[], this.height = 40, this.textEditingControllers = const <TextEditingController>[], this.limitLines = true});
-
-  final double textBoxHeightFraction = 1;
-
-  Widget textFieldConstructor(controller) {
-
-    if(limitLines) {
-      return TextField(
-        maxLines: 1,
-        controller: controller,
-      );
-    }else{
-      return TextField(
-        keyboardType: TextInputType.multiline,
-        maxLines: null,
-        controller: controller,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-    List<Widget> inputFields = [];
-    for(var i = 0; i < numberOfFields; i++) {
-      inputFields.addAll(<Widget>[
-        Text(fieldNames[i]),
-        Container(width: 5,),
-        Expanded(
-          child: Container(
-            height: height * textBoxHeightFraction,
-            child: textFieldConstructor(textEditingControllers[i])
-          ),
-        ),
-        Container(width: 5,),
-      ]);
-    }
-    inputFields.removeLast();
-
-    return Container(
-      height: height,
-      margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
-      child: Column(children: <Widget>[
-        Container(
-          width: double.infinity,
-          child: Text(title),
-        ),
-        Expanded(
-          child: Container(
-            width: double.infinity,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: inputFields,
-            ),
-          ),
-        )
-      ],),
     );
   }
 }

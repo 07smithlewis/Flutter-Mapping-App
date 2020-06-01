@@ -1,5 +1,6 @@
 import 'dart:convert' as convert;
 import 'package:http/http.dart' as http;
+import 'dart:core';
 
 class DbInteraction {
 
@@ -10,13 +11,20 @@ class DbInteraction {
   DbInteraction({this.spreadsheetId, this.headers});
 
   String urlParams(List p) {
+
+    List _p = p.toList();
+
+    for(int i = 0; i < p.length; i++) {
+      _p[i] = Uri.encodeComponent(p[i].toString());
+    }
+
     switch(p[0]) {
 
       case "append": {
         if(p.length - 1 == headers.length){
-          String paramString = "?spreadsheetId=$spreadsheetId&interaction=${p[0]}";
+          String paramString = "?spreadsheetId=$spreadsheetId&interaction=${_p[0]}";
           for(var i = 0; i < headers.length; i++){
-            paramString += "&" + headers[i] + "=${p[i + 1]}";
+            paramString += "&" + headers[i] + "=${_p[i + 1]}";
           }
           return paramString;
         }else{
@@ -27,21 +35,22 @@ class DbInteraction {
       break;
 
       case "delete": {
-        return "?spreadsheetId=$spreadsheetId&interaction=${p[0]}&deleteId=${p[1]}";
+        return "?spreadsheetId=$spreadsheetId&interaction=${_p[0]}&deleteId=${_p[1]}";
       }
       break;
 
       case "set": {
-        return "?spreadsheetId=$spreadsheetId&interaction=${p[0]}&setId=${p[1]}&columnName=${p[2]}&value=${p[3]}";
+        return "?spreadsheetId=$spreadsheetId&interaction=${_p[0]}&setId=${_p[1]}&columnName=${_p[2]}&value=${_p[3]}";
       }
       break;
 
       case "replace": {
         if(p.length - 2 == headers.length){
-          String paramString = "?spreadsheetId=$spreadsheetId&interaction=${p[0]}&replaceId=${p[1]}";
+          String paramString = "?spreadsheetId=$spreadsheetId&interaction=${_p[0]}&replaceId=${_p[1]}";
           for(var i = 0; i < headers.length; i++){
-            paramString += "&" + headers[i] + "=${p[i + 2]}";
+            paramString += "&" + headers[i] + "=${_p[i + 2]}";
           }
+          print(paramString);
           return paramString;
         }else{
           print("Invalid number of arguments");
@@ -51,7 +60,7 @@ class DbInteraction {
       break;
 
       case "get": {
-        return "?spreadsheetId=$spreadsheetId&interaction=${p[0]}";
+        return "?spreadsheetId=$spreadsheetId&interaction=${_p[0]}";
       }
       break;
 

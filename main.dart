@@ -62,7 +62,7 @@ class Home extends StatefulWidget {
   );
   final DbInteraction mapDataDb = DbInteraction(
     spreadsheetId: "1RNbF50QzE0NDY5FSIjH8sQTrEua7FmC_joMQjr9ijSo",
-    headers: ["Name", "x", "y", "minZoom", "maxZoom", "title", "image", "content", "link", "showNameplate"]
+    headers: ["Name", "x", "y", "minZoom", "maxZoom", "title", "image", "content", "link", "showNameplate", "icon", "customIcon"]
   );
   final DbInteraction settingsDb = DbInteraction(
     spreadsheetId: "1Gp2jb89T295CpraBZwPEW0i7KNgg9y56z_y6y9FWrRI",
@@ -325,29 +325,57 @@ class _MapNavigationState extends State<MapNavigation> {
 
   int editing = 0;
   List editItem;
-  String search = "";
+  final search = TextEditingController();
+  final double searchHeight = 60;
 
   @override
   Widget build(BuildContext context) {
-
-    print("building navigation");
 
     switch(editing) {
       case 0:
         final inheritedData = context.dependOnInheritedWidgetOfExactType<InheritedData>();
 
-        List<Widget> drawerContents = [ListTile(
-          leading: Icon(Icons.home),
-          title: Text("Canvas"),
-          onTap: () {
-            inheritedData.setView(<double>[-inheritedData.canvasDimensions[0] * 0.05, inheritedData.canvasDimensions[1] * 1.05], inheritedData.canvasDimensions[0] * 1.1);
-            Navigator.pop(context);
-          },
-        )];
-        drawerContents.add(Divider(
-          height: 10,
-          thickness: 5,
-        ));
+        List<Widget> drawerContents = [
+          ListTile(
+            leading: Icon(Icons.home),
+            title: Text("Canvas"),
+            onTap: () {
+              inheritedData.setView(<double>[-inheritedData.canvasDimensions[0] * 0.05, inheritedData.canvasDimensions[1] * 1.05], inheritedData.canvasDimensions[0] * 1.1);
+              Navigator.pop(context);
+            },
+          ),
+          Divider(
+            height: 10,
+            thickness: 5,
+          ),
+          Container(
+            height: searchHeight,
+            margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+            child: Column(children: <Widget>[
+              Container(
+                width: double.infinity,
+                child: Text("Search"),
+              ),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  child: Container(
+                    child: TextField(
+                      maxLines: 1,
+                      controller: search,
+                      onChanged: (text){
+                        setState(() {});
+                      },
+                  )),
+                ),
+              ),
+            ])
+          ),
+          Divider(
+            height: 10,
+            thickness: 5,
+          ),
+        ];
 
         List mapsInfo = inheritedData.mapsInfo.map((e) => e).toList();
         mapsInfo.removeWhere((map) {
@@ -356,7 +384,7 @@ class _MapNavigationState extends State<MapNavigation> {
           List<double> position = [map[3], inheritedData.canvasDimensions[1] - map[4]];
           double normalisedZoom = log(inheritedData.canvasZoom) * log2e;
 
-          return !(normalisedZoom > map[6]) || !(normalisedZoom < map[7])
+          return !map[1].toString().toLowerCase().contains(search.text.toLowerCase()) || !(normalisedZoom > map[6]) || !(normalisedZoom < map[7])
           || !((inheritedData.screenDimensions[0] - inheritedData.canvasDimensions[0] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[0] + position[0] * inheritedData.canvasZoom + width > 0)
           || !((-inheritedData.screenDimensions[0] - inheritedData.canvasDimensions[0] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[0] + position[0] * inheritedData.canvasZoom < 0)
           || !((inheritedData.screenDimensions[1] - inheritedData.canvasDimensions[1] * inheritedData.canvasZoom)/2.0 + inheritedData.canvasCoordinates[1] + position[1] * inheritedData.canvasZoom + height > 0)
@@ -393,7 +421,7 @@ class _MapNavigationState extends State<MapNavigation> {
           (inheritedData.screenDimensions[1] - inheritedData.canvasDimensions[1] * inheritedData.canvasZoom) / 2 - inheritedData.canvasCoordinates[1] + position[1]];
           double normalisedZoom = log(inheritedData.canvasZoom) * log2e;
 
-          return !(normalisedZoom > pin[4] && normalisedZoom < pin[5])
+          return !pin[1].toString().toLowerCase().contains(search.text.toLowerCase()) || !(normalisedZoom > pin[4] && normalisedZoom < pin[5])
           || !(positionScreen[0] > -inheritedData.maxNameplateSize[0]) || !(positionScreen[0] < inheritedData.screenDimensions[0])
           || !(positionScreen[1] > -inheritedData.maxNameplateSize[1] + inheritedData.pinSize * (1 - inheritedData.iconAnchorPoint))
           || !(positionScreen[1] < inheritedData.screenDimensions[1] + inheritedData.pinSize * inheritedData.iconAnchorPoint);
@@ -483,7 +511,7 @@ class AddPin extends StatefulWidget {
 
 class _AddPinState extends State<AddPin> {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(5, (index) => TextEditingController());
+  final List<TextEditingController> myController = List<TextEditingController>.generate(6, (index) => TextEditingController());
 
   @override
   void dispose() {
@@ -508,6 +536,9 @@ class _AddPinState extends State<AddPin> {
       zoomClipping[1] = double.parse(upperBound);
     }
   }
+
+  int iconSelected = 0;
+  bool customIcon = false;
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +566,41 @@ class _AddPinState extends State<AddPin> {
 
     if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
     if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
+
+    List<Widget> icons = List.generate(20, (index) => Container(
+      margin: EdgeInsets.all(2), width: 44, height: 44, child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
+          borderRadius: BorderRadius.circular(5)
+        ),
+        width: double.infinity, height: double.infinity, 
+        child: FlatButton(
+          shape: new RoundedRectangleBorder(borderRadius: new BorderRadius.circular(5)),
+          onPressed: (){setState(() {iconSelected = index;});},
+          child: Center(child: Image.network("./Icons/${index + 1}.png"))
+        ),
+      )
+    ));
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      Container(
+        margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+        child: Row(children: [
+          Text("Custom Icon"),
+          Switch(
+            value: customIcon,
+            onChanged: (value) {
+              setState(() {
+                customIcon = value;
+                myController[5].text = "";
+              });
+            },
+          ),
+        ],),
+      ),
+      customIcon ? ListInput(title: "Icon", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(5, 6),) :
+      Wrap(children: icons)
+    ]);
 
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
@@ -583,6 +649,7 @@ class _AddPinState extends State<AddPin> {
                     myController[0].text, myController[1].text,
                     zoomClipping[0], zoomClipping[1],
                     myController[2].text, "", "", "", false,
+                    iconSelected + 1, myController[5].text
                   ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
@@ -1573,10 +1640,9 @@ class ListInput extends StatelessWidget {
     for(var i = 0; i < numberOfFields; i++) {
       inputFields.addAll(<Widget>[
         Text(fieldNames[i]),
-        Container(width: 5,),
+        Container(width: 5, height: 1,),
         Expanded(
           child: Container(
-            height: height * textBoxHeightFraction,
             child: textFieldConstructor(textEditingControllers[i])
           ),
         ),
@@ -1585,24 +1651,42 @@ class ListInput extends StatelessWidget {
     }
     inputFields.removeLast();
 
-    return Container(
-      height: height,
-      margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
-      child: Column(children: <Widget>[
+    Widget content = Column(
+      mainAxisSize: MainAxisSize.max,
+      children: <Widget>[
         Container(
           width: double.infinity,
           child: Text(title),
         ),
-        Expanded(
+        limitLines ? Container(
+          width: double.infinity,
           child: Container(
-            width: double.infinity,
+            alignment: Alignment.bottomCenter,
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: inputFields,
             ),
           ),
+        ) : Expanded(
+          child: Container(
+            width: double.infinity,
+            child: Container(
+              alignment: Alignment.bottomCenter,
+              child: Row(
+                children: inputFields,
+              ),
+            ),
+          ),
         )
-      ],),
+      ],
+    );
+
+    return limitLines ? Container(
+      margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+      child: content,
+    ) : Container(
+      height: height * 4,
+      margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+      child: content,
     );
   }
 }

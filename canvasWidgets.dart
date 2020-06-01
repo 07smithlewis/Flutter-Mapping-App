@@ -260,7 +260,7 @@ class _MapPin extends State<MapPin> {
                     });
                   }
                 },
-                child: Icon(Icons.pin_drop, size: widget.pinSize.toDouble()),
+                child: Image.network("./Icons/${widget.pin[11]}.png", width: widget.pinSize.toDouble(), height: widget.pinSize.toDouble(),),
               )
             )
           ])
