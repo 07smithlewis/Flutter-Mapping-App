@@ -478,6 +478,9 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
       myController[i].text = pin[i + 1].toString();
     }
     nameplateSwitch = pin[10];
+    customIcon = (pin[12] != "");
+    myController[9].text = pin[12];
+    iconSelected = pin[11] - 1;
   }
 
   bool edit = false;
@@ -589,16 +592,17 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
 
         List<Widget> icons = List.generate(20, (index) => Container(
           margin: EdgeInsets.all(2), width: 44, height: 44, child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
-              borderRadius: BorderRadius.circular(5)
-            ),
             width: double.infinity, height: double.infinity, 
-            child: FlatButton(
-              shape: new RoundedRectangleBorder(borderRadius: new BorderRadius.circular(5)),
-              onPressed: (){setState(() {iconSelected = index;});},
-              child: Center(child: Image.network("./Icons/${index + 1}.png"))
-            ),
+            child: Material(
+              borderRadius: BorderRadius.circular(5),
+              color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
+              child: InkWell(
+                child: Center(child: SizedBox(child: Image.network("./Icons/${index + 1}.png"), width: 30, height: 30),),
+                onTap: (){
+                  setState(() {iconSelected = index;});
+                },
+              ),
+            )
           )
         ));
         windowWidgetList.addAll(<Widget>[
@@ -635,8 +639,8 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
 
                 if(isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                   setState(() {err[1] = false;});
-                  if(0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[0] 
-                  && 0 < double.parse(myController[2].text) && double.parse(myController[2].text) < inheritedData.canvasDimensions[1]) {
+                  if(0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[0] 
+                  && 0 <= double.parse(myController[2].text) && double.parse(myController[2].text) <= inheritedData.canvasDimensions[1]) {
                     setState(() {err[2] = false;});
                   }else{setState(() {err[2] = true;});}
                 }else{setState(() {
@@ -674,7 +678,7 @@ class _PopupWindowContentState extends State<PopupWindowContent> {
                       myController[0].text, myController[1].text, myController[2].text,
                       zoomClipping[0], zoomClipping[1],
                       myController[5].text, myController[6].text, myController[7].text, myController[8].text, 
-                      nameplateSwitch, iconSelected + 1, myController[9]
+                      nameplateSwitch, iconSelected + 1, customIcon ? myController[9].text : ""
                     ], (response){
                       setState(() {
                         loading[0] = false;

@@ -50,7 +50,6 @@ class DbInteraction {
           for(var i = 0; i < headers.length; i++){
             paramString += "&" + headers[i] + "=${_p[i + 2]}";
           }
-          print(paramString);
           return paramString;
         }else{
           print("Invalid number of arguments");

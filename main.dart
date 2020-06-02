@@ -57,15 +57,15 @@ void main() => runApp(MaterialApp(home: Home()));
 class Home extends StatefulWidget {
 
   final DbInteraction mapDb = new DbInteraction(
-    spreadsheetId: "1KXsICI8z6WPonIavtpgruh38WMKwPvweAXT3dCx1FEg",
+    spreadsheetId: "1E3D7JyGyZe1HPbgY5F5-51f8Rd_M6Mlc09cNGBcpv_A",
     headers: ["mapName", "isTiled", "x", "y", "z", "minZoom", "maxZoom", "width", "height", "link", "metadata"]
   );
   final DbInteraction mapDataDb = DbInteraction(
-    spreadsheetId: "1RNbF50QzE0NDY5FSIjH8sQTrEua7FmC_joMQjr9ijSo",
+    spreadsheetId: "1UZqF2A5Z4c7IjNqyhlrtkLjkKA-z72Tkodb1jfb4aOw",
     headers: ["Name", "x", "y", "minZoom", "maxZoom", "title", "image", "content", "link", "showNameplate", "icon", "customIcon"]
   );
   final DbInteraction settingsDb = DbInteraction(
-    spreadsheetId: "1Gp2jb89T295CpraBZwPEW0i7KNgg9y56z_y6y9FWrRI",
+    spreadsheetId: "10Vlu4Of9yKy1i_ZWN2cJvQ-xGfaou41v73FPKXgR7yk",
     headers: ["canvasWidth", "canvasHeight", "canvasUnits", "minZoom", "maxZoom", "appColor", "canvasButtonColor", "canvasBackgroundColor", "canvasColor"]
   );
 
@@ -137,7 +137,11 @@ class _HomeState extends State<Home> {
       getMaps((){});
       getMapData((){});
       getSettings((){});
-      setState((){rebuild = !rebuild;});
+    });
+    Timer.periodic(new Duration(seconds: 1), (timer) {
+      setState(() {
+        rebuild = !rebuild;
+      });
     });
     super.initState();
   }
@@ -429,7 +433,7 @@ class _MapNavigationState extends State<MapNavigation> {
         mapDataInfo.sort((a, b) => a[1].toString().compareTo(b[1].toString()));
 
         drawerContents.addAll(mapDataInfo.map((pin) => ListTile(
-          leading: Icon(Icons.pin_drop),
+          leading: SizedBox(child: Image.network(pin[12] == "" ? "./Icons/${pin[11]}.png" : pin[12]), width: 30, height: 30,),
           title: Text(pin[1]),
           subtitle: Text("x: ${pin[2]},\ny: ${pin[3]}"),
           enabled: true,
@@ -440,12 +444,20 @@ class _MapNavigationState extends State<MapNavigation> {
             inheritedData.canvasDimensions[0] * zoomClippingMultiplier);
             Navigator.pop(context);
           },
-          trailing: IconButton(icon: Icon(Icons.edit), onPressed: (){
-            setState(() {
-              editing = 2;
-              editItem = pin;
-            });
-          }),
+          trailing: SizedBox(width: 30, height: 30, 
+            child: Material(
+              borderRadius: BorderRadius.circular(15),
+              color: Colors.white.withOpacity(0),
+              child: InkWell(
+                hoverColor: Colors.black.withOpacity(0.2),
+                child: Icon(Icons.edit),
+                onTap: (){setState(() {
+                  editing = 2;
+                  editItem = pin;
+                });},
+              )
+            )
+          ),
         )).toList());
 
         return ListView(
@@ -569,16 +581,17 @@ class _AddPinState extends State<AddPin> {
 
     List<Widget> icons = List.generate(20, (index) => Container(
       margin: EdgeInsets.all(2), width: 44, height: 44, child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
-          borderRadius: BorderRadius.circular(5)
-        ),
         width: double.infinity, height: double.infinity, 
-        child: FlatButton(
-          shape: new RoundedRectangleBorder(borderRadius: new BorderRadius.circular(5)),
-          onPressed: (){setState(() {iconSelected = index;});},
-          child: Center(child: Image.network("./Icons/${index + 1}.png"))
-        ),
+        child: Material(
+          borderRadius: BorderRadius.circular(5),
+          color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
+          child: InkWell(
+            child: Center(child: SizedBox(child: Image.network("./Icons/${index + 1}.png"), width: 30, height: 30),),
+            onTap: (){
+              setState(() {iconSelected = index;});
+            },
+          ),
+        )
       )
     ));
     listItems.addAll(<Widget>[
@@ -615,8 +628,8 @@ class _AddPinState extends State<AddPin> {
 
               if(isNumeric(myController[0].text) && isNumeric(myController[1].text)) {
                 setState(() {err[1] = false;});
-                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
-                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                if(0 <= double.parse(myController[0].text) && double.parse(myController[0].text) <= inheritedData.canvasDimensions[0] 
+                && 0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[1]) {
                   setState(() {err[2] = false;});
                 }else{setState(() {err[2] = true;});}
               }else{setState(() {
@@ -649,7 +662,7 @@ class _AddPinState extends State<AddPin> {
                     myController[0].text, myController[1].text,
                     zoomClipping[0], zoomClipping[1],
                     myController[2].text, "", "", "", false,
-                    iconSelected + 1, myController[5].text
+                    iconSelected + 1, customIcon ? myController[5].text : ""
                   ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
@@ -688,7 +701,7 @@ class EditPin extends StatefulWidget {
 
 class _EditPinState extends State<EditPin> {
 
-  final List<TextEditingController> myController = List<TextEditingController>.generate(10, (index) => TextEditingController());
+  final List<TextEditingController> myController = List<TextEditingController>.generate(12, (index) => TextEditingController());
   
   @override
   void dispose() {
@@ -703,6 +716,9 @@ class _EditPinState extends State<EditPin> {
     for(int i = 0; i < myController.length; i++) {
       myController[i].text = widget.pin[i + 1].toString();
     }
+    customIcon = (widget.pin[12] != "");
+    myController[11].text = widget.pin[12];
+    iconSelected = widget.pin[11] - 1;
     super.initState();
   }
 
@@ -721,6 +737,9 @@ class _EditPinState extends State<EditPin> {
       zoomClipping[1] = double.parse(upperBound);
     }
   }
+
+  int iconSelected = 0;
+  bool customIcon = false;
 
   @override
   Widget build(BuildContext context) {
@@ -749,6 +768,42 @@ class _EditPinState extends State<EditPin> {
     if(err[3]) {listItems.addAll(errorMessage(errMessage[3], spaceHeight));}
     if(err[4]) {listItems.addAll(errorMessage(errMessage[4], spaceHeight));}
 
+    List<Widget> icons = List.generate(20, (index) => Container(
+      margin: EdgeInsets.all(2), width: 44, height: 44, child: Container(
+        width: double.infinity, height: double.infinity, 
+        child: Material(
+          borderRadius: BorderRadius.circular(5),
+          color: Colors.black.withOpacity(index == iconSelected ? 0.2 : 0),
+          child: InkWell(
+            child: Center(child: SizedBox(child: Image.network("./Icons/${index + 1}.png"), width: 30, height: 30),),
+            onTap: (){
+              setState(() {iconSelected = index;});
+            },
+          ),
+        )
+      )
+    ));
+    listItems.addAll(<Widget>[
+      Divider(height: spaceHeight, thickness: 5,),
+      Container(
+        margin: EdgeInsets.fromLTRB(5, 0, 5, 0),
+        child: Row(children: [
+          Text("Custom Icon"),
+          Switch(
+            value: customIcon,
+            onChanged: (value) {
+              setState(() {
+                customIcon = value;
+                myController[11].text = "";
+              });
+            },
+          ),
+        ],),
+      ),
+      customIcon ? ListInput(title: "Icon", numberOfFields: 1, fieldNames: ["Link"], height: entryHeight, textEditingControllers: myController.sublist(11, 12),) :
+      Wrap(children: icons)
+    ]);
+
     listItems.addAll(<Widget>[
       Divider(height: spaceHeight, thickness: 5,),
       Container(
@@ -762,8 +817,8 @@ class _EditPinState extends State<EditPin> {
 
               if(isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[1] = false;});
-                if(0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[0] 
-                && 0 < double.parse(myController[2].text) && double.parse(myController[2].text) < inheritedData.canvasDimensions[1]) {
+                if(0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[0] 
+                && 0 <= double.parse(myController[2].text) && double.parse(myController[2].text) <= inheritedData.canvasDimensions[1]) {
                   setState(() {err[2] = false;});
                 }else{setState(() {err[2] = true;});}
               }else{setState(() {
@@ -801,7 +856,7 @@ class _EditPinState extends State<EditPin> {
                     myController[0].text,
                     myController[1].text, myController[2].text,
                     zoomClipping[0], zoomClipping[1],
-                    myController[5].text, myController[6].text, myController[7].text, myController[8].text, myController[9].text,
+                    myController[5].text, myController[6].text, myController[7].text, myController[8].text, myController[9].text, !customIcon ? iconSelected + 1 : 1, customIcon ? myController[11].text : ""
                   ], (response){Navigator.pop(context);});
               }else{
                 setState(() {
@@ -989,8 +1044,8 @@ class _AddMapState extends State<AddMap> {
               
               if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[0] = false;});
-                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
-                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                if(0 <= double.parse(myController[0].text) && double.parse(myController[0].text) <= inheritedData.canvasDimensions[0] 
+                && 0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[1]) {
                   setState(() {err[2] = false;});
                 }else{setState(() {err[2] = true;});}
               }else{setState(() {
@@ -1144,8 +1199,8 @@ class _AddTiledMapState extends State<AddTiledMap> {
               
               if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[0] = false;});
-                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
-                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                if(0 <= double.parse(myController[0].text) && double.parse(myController[0].text) <= inheritedData.canvasDimensions[0] 
+                && 0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[1]) {
                   setState(() {err[2] = false;});
                 }else{setState(() {err[2] = true;});}
               }else{setState(() {
@@ -1325,8 +1380,8 @@ class _EditMapState extends State<EditMap> {
               
               if(isNumeric(myController[0].text) && isNumeric(myController[1].text) && isNumeric(myController[2].text)) {
                 setState(() {err[0] = false;});
-                if(0 < double.parse(myController[0].text) && double.parse(myController[0].text) < inheritedData.canvasDimensions[0] 
-                && 0 < double.parse(myController[1].text) && double.parse(myController[1].text) < inheritedData.canvasDimensions[1]) {
+                if(0 <= double.parse(myController[0].text) && double.parse(myController[0].text) <= inheritedData.canvasDimensions[0] 
+                && 0 <= double.parse(myController[1].text) && double.parse(myController[1].text) <= inheritedData.canvasDimensions[1]) {
                   setState(() {err[2] = false;});
                 }else{setState(() {err[2] = true;});}
               }else{setState(() {

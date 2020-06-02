@@ -190,7 +190,7 @@ class _MapPin extends State<MapPin> {
   Widget build(BuildContext context) {
 
     final canvas = context.dependOnInheritedWidgetOfExactType<InheritedCanvas>();
-    final double iconAnchorPoint = 0;
+    final double iconAnchorPoint = 0.4;
 
     List<double> position = [widget.pin[2] * canvas.zoom - widget.maxNameplateSize[0] / 2, widget.pin[3] * canvas.zoom - widget.pinSize * iconAnchorPoint];
     List<double> positionScreen = [(canvas.width - canvas.canvasWidth * canvas.zoom) / 2 + canvas.coordinates[0] + position[0],
@@ -260,7 +260,7 @@ class _MapPin extends State<MapPin> {
                     });
                   }
                 },
-                child: Image.network("./Icons/${widget.pin[11]}.png", width: widget.pinSize.toDouble(), height: widget.pinSize.toDouble(),),
+                child: Center(child: Image.network(widget.pin[12] == "" ? "./Icons/${widget.pin[11]}.png" : widget.pin[12]))
               )
             )
           ])
